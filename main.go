@@ -9,6 +9,25 @@ import (
 	"path"
 )
 
+type loginData struct {
+	AuthToken string `json:"authToken"`
+	UserId    string `json:"userId"`
+}
+
+type apiResult struct {
+	Status string    `json:"status"`
+	Data   loginData `json:"data"`
+}
+
+func postAPI(url string, data url.Values, target interface{}) error {
+	response, err := http.PostForm(url, data)
+	if err != nil {
+		return err
+	}
+	defer response.Body.Close()
+	return json.NewDecoder(response.Body).Decode(target)
+}
+
 func main() {
 	// Get settings
 	viper.SetConfigName("setting")
@@ -26,4 +45,18 @@ func main() {
 	botAvatarUrl := viper.GetString("chat_bot.avatar_url")
 	botTargets := viper.GetStringSlice("chat_bot.target_channels")
 	fmt.Println(botName, botAvatarUrl, botTargets)
+
+	// Login
+	loginUrl, err := url.Parse(chatUrl)
+	loginUrl.Path = path.Join(loginUrl.Path, "/api/v1/login")
+	loginUrlString := loginUrl.String()
+	loginResponse := new(apiResult)
+	err = postAPI(
+		loginUrlString,
+		url.Values{"user": {chatUser}, "password": {chatPwd}},
+		loginResponse)
+	if err != nil {
+		panic(fmt.Errorf("Fatal error login by http post: %s \n", err))
+	}
+	fmt.Println(loginResponse.Data)
 }
