@@ -1,0 +1,10 @@
+rocket_chat:
+  url:
+  user_name:
+  password:
+
+chat_bot:
+  display_name: Doge Bot
+  avatar_url: https://i.imgur.com/ZNsQPPS.jpg
+  target_channels:
+    - "#jason_playground"
