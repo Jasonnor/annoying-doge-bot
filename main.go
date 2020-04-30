@@ -10,11 +10,11 @@ import (
 )
 
 type loginData struct {
-	AuthToken string `json:"authToken"`
-	UserId    string `json:"userId"`
+	AuthToken string `json:"authToken" default:""`
+	UserId    string `json:"userId" default:""`
 }
 
-type apiResult struct {
+type loginResult struct {
 	Status string    `json:"status"`
 	Data   loginData `json:"data"`
 }
@@ -55,7 +55,7 @@ func main() {
 	loginUrl, err := url.Parse(chatUrl)
 	loginUrl.Path = path.Join(loginUrl.Path, "/api/v1/login")
 	loginUrlString := loginUrl.String()
-	loginResponse := new(apiResult)
+	loginResponse := new(loginResult)
 	err = postAPI(
 		loginUrlString,
 		url.Values{"user": {chatUser}, "password": {chatPwd}},
