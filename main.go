@@ -20,6 +20,11 @@ type loginResult struct {
 	Data   loginData `json:"data"`
 }
 
+type postMsgResult struct {
+	Success bool   `json:"success"`
+	Channel string `json:"channel"`
+}
+
 func postAPI(url string, data url.Values, header loginData, target interface{}) error {
 	client := &http.Client{}
 	body := strings.NewReader(data.Encode())
@@ -77,4 +82,25 @@ func main() {
 	}
 	loginHeader = loginResponse.Data
 	fmt.Println(loginResponse.Data)
+
+	// Send text to target channels
+	postMsgUrl, err := url.Parse(chatUrl)
+	postMsgUrl.Path = path.Join(postMsgUrl.Path, "/api/v1/chat.postMessage")
+	postMsgUrlString := postMsgUrl.String()
+	for _, botTarget := range botTargets {
+		postMsgResponse := new(postMsgResult)
+		err = postAPI(
+			postMsgUrlString,
+			url.Values{
+				"channel": {botTarget},
+				"text":    {"test"},
+				"alias":   {botName},
+				"avatar":  {botAvatarUrl}},
+			loginHeader,
+			postMsgResponse)
+		if err != nil {
+			panic(fmt.Errorf("Fatal error post message by http post: %s \n", err))
+		}
+		fmt.Println(postMsgResponse)
+	}
 }
