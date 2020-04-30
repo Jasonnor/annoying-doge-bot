@@ -24,7 +24,12 @@ func postAPI(url string, data url.Values, target interface{}) error {
 	if err != nil {
 		return err
 	}
-	defer response.Body.Close()
+	defer func() {
+		err := response.Body.Close()
+		if err != nil {
+			panic(fmt.Errorf("Fatal error close response body: %s \n", err))
+		}
+	}()
 	return json.NewDecoder(response.Body).Decode(target)
 }
 
