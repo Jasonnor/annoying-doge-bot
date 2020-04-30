@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"strings"
 )
 
 type loginData struct {
@@ -19,8 +20,17 @@ type loginResult struct {
 	Data   loginData `json:"data"`
 }
 
-func postAPI(url string, data url.Values, target interface{}) error {
-	response, err := http.PostForm(url, data)
+func postAPI(url string, data url.Values, header loginData, target interface{}) error {
+	client := &http.Client{}
+	body := strings.NewReader(data.Encode())
+	req, err := http.NewRequest("POST", url, body)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("X-User-Id", header.UserId)
+	req.Header.Set("X-Auth-Token", header.AuthToken)
+	response, err := client.Do(req)
 	if err != nil {
 		return err
 	}
@@ -56,12 +66,15 @@ func main() {
 	loginUrl.Path = path.Join(loginUrl.Path, "/api/v1/login")
 	loginUrlString := loginUrl.String()
 	loginResponse := new(loginResult)
+	loginHeader := loginData{}
 	err = postAPI(
 		loginUrlString,
 		url.Values{"user": {chatUser}, "password": {chatPwd}},
+		loginHeader,
 		loginResponse)
 	if err != nil {
 		panic(fmt.Errorf("Fatal error login by http post: %s \n", err))
 	}
+	loginHeader = loginResponse.Data
 	fmt.Println(loginResponse.Data)
 }
