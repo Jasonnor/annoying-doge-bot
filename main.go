@@ -83,6 +83,17 @@ func main() {
 	loginHeader = loginResponse.Data
 	fmt.Println(loginResponse.Data)
 
+	//postMsg(
+	// chatUrl, botTargets, botName, botAvatarUrl, loginHeader, 'test')
+}
+
+func postMsg(
+	chatUrl string,
+	botTargets []string,
+	botName string,
+	botAvatarUrl string,
+	loginHeader loginData,
+	message string) {
 	// Send text to target channels
 	postMsgUrl, err := url.Parse(chatUrl)
 	postMsgUrl.Path = path.Join(postMsgUrl.Path, "/api/v1/chat.postMessage")
@@ -93,7 +104,7 @@ func main() {
 			postMsgUrlString,
 			url.Values{
 				"channel": {botTarget},
-				"text":    {"test"},
+				"text":    {message},
 				"alias":   {botName},
 				"avatar":  {botAvatarUrl}},
 			loginHeader,
