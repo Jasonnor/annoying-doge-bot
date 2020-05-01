@@ -7,4 +7,9 @@ chat_bot:
   display_name: Doge Bot
   avatar_url: https://i.imgur.com/ZNsQPPS.jpg
   target_channels:
-    - "#jason_playground"
+    - "jason_playground"
+
+google_search:
+  url: https://www.googleapis.com/customsearch/v1/siterestrict
+  cx:
+  api_key:

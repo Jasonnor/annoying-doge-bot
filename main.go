@@ -109,6 +109,10 @@ func main() {
 	botAvatarUrl := viper.GetString("chat_bot.avatar_url")
 	botTargets := viper.GetStringSlice("chat_bot.target_channels")
 	fmt.Println(botName, botAvatarUrl, botTargets)
+	searchUrl := viper.GetString("google_search.url")
+	searchCx := viper.GetString("google_search.cx")
+	searchKey := viper.GetString("google_search.api_key")
+	fmt.Println(searchUrl, searchCx, searchKey)
 
 	// Login
 	loginUrl, err := url.Parse(chatUrl)
