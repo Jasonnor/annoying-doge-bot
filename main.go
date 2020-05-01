@@ -38,6 +38,16 @@ type channelsMsgResult struct {
 	Total    int       `json:"total"`
 }
 
+// See: https://developers.google.com/custom-search/v1/reference/rest/v1/Search
+type searchItem struct {
+	Title string `json:"title"`
+	Link  string `json:"link"`
+}
+
+type searchResult struct {
+	Items []searchItem `json:"items"`
+}
+
 type postMsgResult struct {
 	Success bool   `json:"success"`
 	Channel string `json:"channel"`
@@ -150,6 +160,25 @@ func main() {
 			panic(fmt.Errorf("Fatal error get messages by http get: %s \n", err))
 		}
 		fmt.Println(channelsMsgResponse)
+
+		searchText := channelsMsgResponse.Messages[0].Msg + " 梗圖 | 迷因"
+		searchResponse := new(searchResult)
+		searchQueries := map[string]string{
+			"q":          searchText,
+			"cx":         searchCx,
+			"key":        searchKey,
+			"num":        "10",
+			"searchType": "image",
+		}
+		err = getAPI(
+			searchUrl,
+			searchQueries,
+			loginData{},
+			searchResponse)
+		if err != nil {
+			panic(fmt.Errorf("Fatal error search by http get: %s \n", err))
+		}
+		fmt.Println(searchResponse)
 	}
 
 	//postMsg(
