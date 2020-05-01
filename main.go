@@ -147,7 +147,7 @@ func main() {
 			loginHeader,
 			channelsMsgResponse)
 		if err != nil {
-			panic(fmt.Errorf("Fatal error post message by http post: %s \n", err))
+			panic(fmt.Errorf("Fatal error get messages by http get: %s \n", err))
 		}
 		fmt.Println(channelsMsgResponse)
 	}
