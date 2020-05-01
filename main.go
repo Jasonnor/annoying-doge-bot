@@ -48,6 +48,32 @@ func postAPI(url string, data url.Values, header loginData, target interface{}) 
 	return json.NewDecoder(response.Body).Decode(target)
 }
 
+func getAPI(url string, queries map[string]string, header loginData, target interface{}) error {
+	client := &http.Client{}
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("X-User-Id", header.UserId)
+	req.Header.Set("X-Auth-Token", header.AuthToken)
+	query := req.URL.Query()
+	for key, value := range queries {
+		query.Add(key, value)
+	}
+	req.URL.RawQuery = query.Encode()
+	response, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		err := response.Body.Close()
+		if err != nil {
+			panic(fmt.Errorf("Fatal error close response body: %s \n", err))
+		}
+	}()
+	return json.NewDecoder(response.Body).Decode(target)
+}
+
 func main() {
 	// Get settings
 	viper.SetConfigName("setting")
