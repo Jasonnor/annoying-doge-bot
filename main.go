@@ -20,6 +20,24 @@ type loginResult struct {
 	Data   loginData `json:"data"`
 }
 
+type user struct {
+	Id       string `json:"_id"`
+	Username string `json:"username"`
+	Name     string `json:"name"`
+}
+
+type message struct {
+	Id   string `json:"_id"`
+	Msg  string `json:"msg"`
+	User user   `json:"u"`
+}
+
+type channelsMsgResult struct {
+	Success  bool      `json:"success"`
+	Messages []message `json:"messages"`
+	Total    int       `json:"total"`
+}
+
 type postMsgResult struct {
 	Success bool   `json:"success"`
 	Channel string `json:"channel"`
@@ -108,6 +126,27 @@ func main() {
 	}
 	loginHeader = loginResponse.Data
 	fmt.Println(loginResponse.Data)
+
+	// Get messages from target channels
+	channelsMsgUrl, err := url.Parse(chatUrl)
+	channelsMsgUrl.Path = path.Join(channelsMsgUrl.Path, "/api/v1/channels.messages")
+	channelsMsgUrlString := channelsMsgUrl.String()
+	for _, botTarget := range botTargets {
+		channelsMsgResponse := new(channelsMsgResult)
+		queries := map[string]string{
+			"roomName": botTarget,
+			"count":    "5",
+		}
+		err = getAPI(
+			channelsMsgUrlString,
+			queries,
+			loginHeader,
+			channelsMsgResponse)
+		if err != nil {
+			panic(fmt.Errorf("Fatal error post message by http post: %s \n", err))
+		}
+		fmt.Println(channelsMsgResponse)
+	}
 
 	//postMsg(
 	// chatUrl, botTargets, botName, botAvatarUrl, loginHeader, 'test')
