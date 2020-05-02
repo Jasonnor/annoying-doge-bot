@@ -133,5 +133,5 @@ func PostMsg(
 	if err != nil {
 		panic(fmt.Errorf("Fatal error post message by http post: %s \n", err))
 	}
-	fmt.Println(postMsgResponse)
+	fmt.Println("[INFO] Post message successfully")
 }

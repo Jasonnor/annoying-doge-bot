@@ -17,15 +17,15 @@ func main() {
 	chatUrl := viper.GetString("rocket_chat.url")
 	chatUser := viper.GetString("rocket_chat.user_name")
 	chatPwd := viper.GetString("rocket_chat.password")
-	fmt.Println(chatUrl, chatUser, chatPwd)
 	botName := viper.GetString("chat_bot.display_name")
 	botAvatarUrl := viper.GetString("chat_bot.avatar_url")
 	botTargets := viper.GetStringSlice("chat_bot.target_channels")
-	fmt.Println(botName, botAvatarUrl, botTargets)
 	searchUrl := viper.GetString("google_search.url")
 	searchCx := viper.GetString("google_search.cx")
 	searchKey := viper.GetString("google_search.api_key")
-	fmt.Println(searchUrl, searchCx, searchKey)
+	fmt.Printf(
+		"[INFO] Get config from %s successfully\n",
+		viper.ConfigFileUsed())
 
 	// Login
 	loginUrl, err := url.Parse(chatUrl)
@@ -47,7 +47,7 @@ func main() {
 		panic(fmt.Errorf("Fatal error login by http post: %s \n", err))
 	}
 	loginHeader = loginResponse.Data
-	fmt.Println(loginResponse.Data)
+	fmt.Printf("[INFO] Login user %s successfully\n", chatUser)
 
 	// Get messages from target channels
 	channelsMsgUrl, err := url.Parse(chatUrl)
@@ -67,7 +67,10 @@ func main() {
 		if err != nil {
 			panic(fmt.Errorf("Fatal error get messages by http get: %s \n", err))
 		}
-		fmt.Println(channelsMsgResponse)
+		fmt.Printf(
+			"[INFO] Get messages from target channel %s successfully, total: %d\n",
+			botTarget,
+			channelsMsgResponse.Total)
 
 		searchText := channelsMsgResponse.Messages[0].Msg + " 梗圖 | 迷因"
 		searchResponse := new(chatbot.SearchResult)
@@ -86,7 +89,12 @@ func main() {
 		if err != nil {
 			panic(fmt.Errorf("Fatal error search by http get: %s \n", err))
 		}
-		fmt.Println(searchResponse)
+		fmt.Printf(
+			"[INFO] Search memes successfully, total: %d\n",
+			len(searchResponse.Items))
+		fmt.Printf(
+			"[DEBUG] Target meme: %+v\n",
+			searchResponse.Items[0])
 
 		// Replay message a meme
 		message := "@" + channelsMsgResponse.Messages[0].User.Name
