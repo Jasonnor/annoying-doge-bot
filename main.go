@@ -1,13 +1,13 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"github.com/spf13/viper"
 	"net/http"
 	"net/url"
 	"path"
-	"strings"
 )
 
 type loginData struct {
@@ -53,14 +53,13 @@ type postMsgResult struct {
 	Channel string `json:"channel"`
 }
 
-func postAPI(url string, data url.Values, header loginData, target interface{}) error {
+func postAPI(url string, jsonStr []byte, header loginData, target interface{}) error {
 	client := &http.Client{}
-	body := strings.NewReader(data.Encode())
-	req, err := http.NewRequest("POST", url, body)
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonStr))
 	if err != nil {
 		return err
 	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-User-Id", header.UserId)
 	req.Header.Set("X-Auth-Token", header.AuthToken)
 	response, err := client.Do(req)
@@ -130,9 +129,14 @@ func main() {
 	loginUrlString := loginUrl.String()
 	loginResponse := new(loginResult)
 	loginHeader := loginData{}
+	loginJson := []byte(
+		fmt.Sprintf(
+			`{"user": "%s", "password": "%s"}`,
+			chatUser,
+			chatPwd))
 	err = postAPI(
 		loginUrlString,
-		url.Values{"user": {chatUser}, "password": {chatPwd}},
+		loginJson,
 		loginHeader,
 		loginResponse)
 	if err != nil {
