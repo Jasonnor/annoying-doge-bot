@@ -183,37 +183,52 @@ func main() {
 			panic(fmt.Errorf("Fatal error search by http get: %s \n", err))
 		}
 		fmt.Println(searchResponse)
-	}
 
-	//postMsg(
-	// chatUrl, botTargets, botName, botAvatarUrl, loginHeader, 'test')
+		// Replay message a meme
+		message := "@" + channelsMsgResponse.Messages[0].User.Name
+		postMsg(
+			chatUrl,
+			botTarget,
+			botName,
+			botAvatarUrl,
+			loginHeader,
+			message,
+			searchResponse.Items[0].Link)
+	}
 }
 
 func postMsg(
 	chatUrl string,
-	botTargets []string,
+	botTarget string,
 	botName string,
 	botAvatarUrl string,
 	loginHeader loginData,
-	message string) {
+	message string,
+	imageUrl string) {
 	// Send text to target channels
 	postMsgUrl, err := url.Parse(chatUrl)
 	postMsgUrl.Path = path.Join(postMsgUrl.Path, "/api/v1/chat.postMessage")
 	postMsgUrlString := postMsgUrl.String()
-	for _, botTarget := range botTargets {
-		postMsgResponse := new(postMsgResult)
-		err = postAPI(
-			postMsgUrlString,
-			url.Values{
-				"channel": {botTarget},
-				"text":    {message},
-				"alias":   {botName},
-				"avatar":  {botAvatarUrl}},
-			loginHeader,
-			postMsgResponse)
-		if err != nil {
-			panic(fmt.Errorf("Fatal error post message by http post: %s \n", err))
-		}
-		fmt.Println(postMsgResponse)
+	postMsgResponse := new(postMsgResult)
+	postMsgJson := []byte(
+		fmt.Sprintf(
+			`{"channel": "%s", 
+				"text": "%s", 
+				"alias": "%s", 
+				"avatar": "%s", 
+				"attachments": [{"image_url": "%s"}]}`,
+			botTarget,
+			message,
+			botName,
+			botAvatarUrl,
+			imageUrl))
+	err = postAPI(
+		postMsgUrlString,
+		postMsgJson,
+		loginHeader,
+		postMsgResponse)
+	if err != nil {
+		panic(fmt.Errorf("Fatal error post message by http post: %s \n", err))
 	}
+	fmt.Println(postMsgResponse)
 }
