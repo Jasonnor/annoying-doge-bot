@@ -1,64 +1,18 @@
 package chatbot
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
 	"github.com/spf13/viper"
-	"net/http"
 	"net/url"
 	"path"
 )
 
 type ChatBot struct {
 	chatUrl, chatUser, chatPwd     string
-	botName, botAvatarUrl          string
-	botTargets                     []string
+	name, avatarUrl                string
+	targets                        []string
 	searchUrl, searchCx, searchKey string
 	loginHeader                    LoginData
-}
-
-type LoginData struct {
-	AuthToken string `json:"authToken" default:""`
-	UserId    string `json:"userId" default:""`
-}
-
-type LoginResult struct {
-	Status string    `json:"status"`
-	Data   LoginData `json:"data"`
-}
-
-type User struct {
-	Id       string `json:"_id"`
-	Username string `json:"username"`
-	Name     string `json:"name"`
-}
-
-type Message struct {
-	Id   string `json:"_id"`
-	Msg  string `json:"msg"`
-	User User   `json:"u"`
-}
-
-type ChannelsMsgResult struct {
-	Success  bool      `json:"success"`
-	Messages []Message `json:"messages"`
-	Total    int       `json:"total"`
-}
-
-// See: https://developers.google.com/custom-search/v1/reference/rest/v1/Search
-type SearchItem struct {
-	Title string `json:"title"`
-	Link  string `json:"link"`
-}
-
-type SearchResult struct {
-	Items []SearchItem `json:"items"`
-}
-
-type PostMsgResult struct {
-	Success bool   `json:"success"`
-	Channel string `json:"channel"`
 }
 
 func InitChatBot() (ChatBot, error) {
@@ -70,73 +24,17 @@ func InitChatBot() (ChatBot, error) {
 		"[INFO] Get config from %s successfully\n",
 		viper.ConfigFileUsed())
 	bot := ChatBot{
-		chatUrl:      viper.GetString("rocket_chat.url"),
-		chatUser:     viper.GetString("rocket_chat.user_name"),
-		chatPwd:      viper.GetString("rocket_chat.password"),
-		botName:      viper.GetString("chat_bot.display_name"),
-		botAvatarUrl: viper.GetString("chat_bot.avatar_url"),
-		botTargets:   viper.GetStringSlice("chat_bot.target_channels"),
-		searchUrl:    viper.GetString("google_search.url"),
-		searchCx:     viper.GetString("google_search.cx"),
-		searchKey:    viper.GetString("google_search.api_key"),
+		chatUrl:   viper.GetString("rocket_chat.url"),
+		chatUser:  viper.GetString("rocket_chat.user_name"),
+		chatPwd:   viper.GetString("rocket_chat.password"),
+		name:      viper.GetString("chat_bot.display_name"),
+		avatarUrl: viper.GetString("chat_bot.avatar_url"),
+		targets:   viper.GetStringSlice("chat_bot.target_channels"),
+		searchUrl: viper.GetString("google_search.url"),
+		searchCx:  viper.GetString("google_search.cx"),
+		searchKey: viper.GetString("google_search.api_key"),
 	}
 	return bot, err
-}
-
-func PostAPI(
-	url string,
-	jsonStr []byte,
-	header LoginData,
-	target interface{}) error {
-	client := &http.Client{}
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonStr))
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-User-Id", header.UserId)
-	req.Header.Set("X-Auth-Token", header.AuthToken)
-	response, err := client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		err := response.Body.Close()
-		if err != nil {
-			panic(fmt.Errorf("Fatal error close response body: %s \n", err))
-		}
-	}()
-	return json.NewDecoder(response.Body).Decode(target)
-}
-
-func GetAPI(
-	url string,
-	queries map[string]string,
-	header LoginData,
-	target interface{}) error {
-	client := &http.Client{}
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return err
-	}
-	req.Header.Set("X-User-Id", header.UserId)
-	req.Header.Set("X-Auth-Token", header.AuthToken)
-	query := req.URL.Query()
-	for key, value := range queries {
-		query.Add(key, value)
-	}
-	req.URL.RawQuery = query.Encode()
-	response, err := client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		err := response.Body.Close()
-		if err != nil {
-			panic(fmt.Errorf("Fatal error close response body: %s \n", err))
-		}
-	}()
-	return json.NewDecoder(response.Body).Decode(target)
 }
 
 func (bot *ChatBot) Login() error {
@@ -178,8 +76,8 @@ func (bot ChatBot) PostMsg(
 				"attachments": [{"image_url": "%s"}]}`,
 			botTarget,
 			message,
-			bot.botName,
-			bot.botAvatarUrl,
+			bot.name,
+			bot.avatarUrl,
 			imageUrl))
 	err = PostAPI(
 		postMsgUrlString,
@@ -196,7 +94,7 @@ func (bot ChatBot) ReplyMeme() {
 	channelsMsgUrl, err := url.Parse(bot.chatUrl)
 	channelsMsgUrl.Path = path.Join(channelsMsgUrl.Path, "/api/v1/channels.messages")
 	channelsMsgUrlString := channelsMsgUrl.String()
-	for _, botTarget := range bot.botTargets {
+	for _, botTarget := range bot.targets {
 		channelsMsgResponse := new(ChannelsMsgResult)
 		queries := map[string]string{
 			"roomName": botTarget,
