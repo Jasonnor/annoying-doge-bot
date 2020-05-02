@@ -4,10 +4,19 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/spf13/viper"
 	"net/http"
 	"net/url"
 	"path"
 )
+
+type ChatBot struct {
+	chatUrl, chatUser, chatPwd     string
+	botName, botAvatarUrl          string
+	botTargets                     []string
+	searchUrl, searchCx, searchKey string
+	loginHeader                    LoginData
+}
 
 type LoginData struct {
 	AuthToken string `json:"authToken" default:""`
@@ -52,7 +61,33 @@ type PostMsgResult struct {
 	Channel string `json:"channel"`
 }
 
-func PostAPI(url string, jsonStr []byte, header LoginData, target interface{}) error {
+func InitChatBot() (ChatBot, error) {
+	viper.SetConfigName("setting")
+	viper.SetConfigType("yaml")
+	viper.AddConfigPath("./configs")
+	err := viper.ReadInConfig()
+	fmt.Printf(
+		"[INFO] Get config from %s successfully\n",
+		viper.ConfigFileUsed())
+	bot := ChatBot{
+		chatUrl:      viper.GetString("rocket_chat.url"),
+		chatUser:     viper.GetString("rocket_chat.user_name"),
+		chatPwd:      viper.GetString("rocket_chat.password"),
+		botName:      viper.GetString("chat_bot.display_name"),
+		botAvatarUrl: viper.GetString("chat_bot.avatar_url"),
+		botTargets:   viper.GetStringSlice("chat_bot.target_channels"),
+		searchUrl:    viper.GetString("google_search.url"),
+		searchCx:     viper.GetString("google_search.cx"),
+		searchKey:    viper.GetString("google_search.api_key"),
+	}
+	return bot, err
+}
+
+func PostAPI(
+	url string,
+	jsonStr []byte,
+	header LoginData,
+	target interface{}) error {
 	client := &http.Client{}
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonStr))
 	if err != nil {
@@ -74,7 +109,11 @@ func PostAPI(url string, jsonStr []byte, header LoginData, target interface{}) e
 	return json.NewDecoder(response.Body).Decode(target)
 }
 
-func GetAPI(url string, queries map[string]string, header LoginData, target interface{}) error {
+func GetAPI(
+	url string,
+	queries map[string]string,
+	header LoginData,
+	target interface{}) error {
 	client := &http.Client{}
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -100,11 +139,8 @@ func GetAPI(url string, queries map[string]string, header LoginData, target inte
 	return json.NewDecoder(response.Body).Decode(target)
 }
 
-func Login(
-	chatUrl string,
-	chatUser string,
-	chatPwd string) (LoginData, error) {
-	loginUrl, err := url.Parse(chatUrl)
+func (bot *ChatBot) Login() error {
+	loginUrl, err := url.Parse(bot.chatUrl)
 	loginUrl.Path = path.Join(loginUrl.Path, "/api/v1/login")
 	loginUrlString := loginUrl.String()
 	loginResponse := new(LoginResult)
@@ -112,28 +148,24 @@ func Login(
 	loginJson := []byte(
 		fmt.Sprintf(
 			`{"user": "%s", "password": "%s"}`,
-			chatUser,
-			chatPwd))
+			bot.chatUser,
+			bot.chatPwd))
 	err = PostAPI(
 		loginUrlString,
 		loginJson,
 		loginHeader,
 		loginResponse)
-	loginHeader = loginResponse.Data
-	fmt.Printf("[INFO] Login user %s successfully\n", chatUser)
-	return loginHeader, err
+	bot.loginHeader = loginResponse.Data
+	fmt.Printf("[INFO] Login user %s successfully\n", bot.chatUser)
+	return err
 }
 
-func PostMsg(
-	chatUrl string,
+func (bot ChatBot) PostMsg(
 	botTarget string,
-	botName string,
-	botAvatarUrl string,
-	loginHeader LoginData,
 	message string,
 	imageUrl string) {
 	// Send text to target channels
-	postMsgUrl, err := url.Parse(chatUrl)
+	postMsgUrl, err := url.Parse(bot.chatUrl)
 	postMsgUrl.Path = path.Join(postMsgUrl.Path, "/api/v1/chat.postMessage")
 	postMsgUrlString := postMsgUrl.String()
 	postMsgResponse := new(PostMsgResult)
@@ -146,13 +178,13 @@ func PostMsg(
 				"attachments": [{"image_url": "%s"}]}`,
 			botTarget,
 			message,
-			botName,
-			botAvatarUrl,
+			bot.botName,
+			bot.botAvatarUrl,
 			imageUrl))
 	err = PostAPI(
 		postMsgUrlString,
 		postMsgJson,
-		loginHeader,
+		bot.loginHeader,
 		postMsgResponse)
 	if err != nil {
 		panic(fmt.Errorf("Fatal error post message by http post: %s \n", err))
@@ -160,19 +192,11 @@ func PostMsg(
 	fmt.Println("[INFO] Post message successfully")
 }
 
-func ReplyMeme(
-	chatUrl string,
-	botTargets []string,
-	loginHeader LoginData,
-	searchCx string,
-	searchKey string,
-	searchUrl string,
-	botName string,
-	botAvatarUrl string) {
-	channelsMsgUrl, err := url.Parse(chatUrl)
+func (bot ChatBot) ReplyMeme() {
+	channelsMsgUrl, err := url.Parse(bot.chatUrl)
 	channelsMsgUrl.Path = path.Join(channelsMsgUrl.Path, "/api/v1/channels.messages")
 	channelsMsgUrlString := channelsMsgUrl.String()
-	for _, botTarget := range botTargets {
+	for _, botTarget := range bot.botTargets {
 		channelsMsgResponse := new(ChannelsMsgResult)
 		queries := map[string]string{
 			"roomName": botTarget,
@@ -181,7 +205,7 @@ func ReplyMeme(
 		err = GetAPI(
 			channelsMsgUrlString,
 			queries,
-			loginHeader,
+			bot.loginHeader,
 			channelsMsgResponse)
 		if err != nil {
 			panic(fmt.Errorf("Fatal error get messages by http get: %s \n", err))
@@ -195,13 +219,13 @@ func ReplyMeme(
 		searchResponse := new(SearchResult)
 		searchQueries := map[string]string{
 			"q":          searchText,
-			"cx":         searchCx,
-			"key":        searchKey,
+			"cx":         bot.searchCx,
+			"key":        bot.searchKey,
 			"num":        "10",
 			"searchType": "image",
 		}
 		err = GetAPI(
-			searchUrl,
+			bot.searchUrl,
 			searchQueries,
 			LoginData{},
 			searchResponse)
@@ -217,12 +241,8 @@ func ReplyMeme(
 
 		// Replay message a meme
 		message := "@" + channelsMsgResponse.Messages[0].User.Name
-		PostMsg(
-			chatUrl,
+		bot.PostMsg(
 			botTarget,
-			botName,
-			botAvatarUrl,
-			loginHeader,
 			message,
 			searchResponse.Items[0].Link)
 	}
