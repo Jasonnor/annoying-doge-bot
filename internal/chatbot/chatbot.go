@@ -17,17 +17,7 @@ type ChatBot struct {
 	loginHeader                    LoginData
 }
 
-func New() (ChatBot, error) {
-	viper.SetConfigName("setting")
-	viper.SetConfigType("yaml")
-	viper.AddConfigPath("./configs")
-	err := viper.ReadInConfig()
-	if err != nil {
-		return ChatBot{}, err
-	}
-	fmt.Printf(
-		"[INFO] Get config from %s successfully\n",
-		viper.ConfigFileUsed())
+func New() ChatBot {
 	bot := ChatBot{
 		chatUrl:   viper.GetString("rocket_chat.url"),
 		chatUser:  viper.GetString("rocket_chat.user_name"),
@@ -39,7 +29,7 @@ func New() (ChatBot, error) {
 		searchCx:  viper.GetString("google_search.cx"),
 		searchKey: viper.GetString("google_search.api_key"),
 	}
-	return bot, err
+	return bot
 }
 
 func (bot *ChatBot) Login() error {
