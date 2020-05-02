@@ -3,8 +3,10 @@ package chatbot
 import (
 	"fmt"
 	"github.com/spf13/viper"
+	"math/rand"
 	"net/url"
 	"path"
+	"time"
 )
 
 type ChatBot struct {
@@ -111,6 +113,7 @@ func (bot ChatBot) ReplyMeme() error {
 	channelsMsgUrl.Path = path.Join(channelsMsgUrl.Path, "/api/v1/channels.messages")
 	channelsMsgUrlString := channelsMsgUrl.String()
 	for _, botTarget := range bot.targets {
+		// Get messages from target channel
 		channelsMsgResponse := new(ChannelsMsgResult)
 		queries := map[string]string{
 			"roomName": botTarget,
@@ -128,11 +131,11 @@ func (bot ChatBot) ReplyMeme() error {
 			"[INFO] Get messages from target channel %s successfully, total: %d\n",
 			botTarget,
 			channelsMsgResponse.Total)
-		fmt.Printf(
-			"[DEBUG] Target message: %+v\n",
-			channelsMsgResponse.Messages[0])
+		targetMessage := channelsMsgResponse.Messages[0]
+		fmt.Printf("[DEBUG] Target message: %+v\n", targetMessage)
 
-		searchText := channelsMsgResponse.Messages[0].Msg + " 梗圖 | 迷因"
+		// Search memes by message
+		searchText := targetMessage.Msg + " 梗圖 | 迷因"
 		searchResponse := new(SearchResult)
 		searchQueries := map[string]string{
 			"q":          searchText,
@@ -149,19 +152,22 @@ func (bot ChatBot) ReplyMeme() error {
 		if err != nil {
 			return err
 		}
+		memeLength := len(searchResponse.Items)
 		fmt.Printf(
 			"[INFO] Search memes successfully, total: %d\n",
-			len(searchResponse.Items))
-		fmt.Printf(
-			"[DEBUG] Target meme: %+v\n",
-			searchResponse.Items[0])
+			memeLength)
+
+		// Randomly choose a meme
+		rand.Seed(time.Now().UnixNano())
+		randomMeme := searchResponse.Items[rand.Intn(memeLength)]
+		fmt.Printf("[DEBUG] Target meme: %+v\n", randomMeme)
 
 		// Replay message a meme
-		message := "@" + channelsMsgResponse.Messages[0].User.Name
+		message := "@" + targetMessage.User.Name
 		err = bot.PostMsg(
 			botTarget,
 			message,
-			searchResponse.Items[0].Link)
+			randomMeme.Link)
 		if err != nil {
 			return err
 		}
