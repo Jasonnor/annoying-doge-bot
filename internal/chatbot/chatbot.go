@@ -20,6 +20,9 @@ func InitChatBot() (ChatBot, error) {
 	viper.SetConfigType("yaml")
 	viper.AddConfigPath("./configs")
 	err := viper.ReadInConfig()
+	if err != nil {
+		return ChatBot{}, err
+	}
 	fmt.Printf(
 		"[INFO] Get config from %s successfully\n",
 		viper.ConfigFileUsed())
@@ -39,6 +42,9 @@ func InitChatBot() (ChatBot, error) {
 
 func (bot *ChatBot) Login() error {
 	loginUrl, err := url.Parse(bot.chatUrl)
+	if err != nil {
+		return err
+	}
 	loginUrl.Path = path.Join(loginUrl.Path, "/api/v1/login")
 	loginUrlString := loginUrl.String()
 	loginResponse := new(LoginResult)
@@ -53,6 +59,9 @@ func (bot *ChatBot) Login() error {
 		loginJson,
 		loginHeader,
 		loginResponse)
+	if err != nil {
+		return err
+	}
 	bot.loginHeader = loginResponse.Data
 	fmt.Printf("[INFO] Login user %s successfully\n", bot.chatUser)
 	return err
@@ -61,9 +70,12 @@ func (bot *ChatBot) Login() error {
 func (bot ChatBot) PostMsg(
 	botTarget string,
 	message string,
-	imageUrl string) {
+	imageUrl string) error {
 	// Send text to target channels
 	postMsgUrl, err := url.Parse(bot.chatUrl)
+	if err != nil {
+		return err
+	}
 	postMsgUrl.Path = path.Join(postMsgUrl.Path, "/api/v1/chat.postMessage")
 	postMsgUrlString := postMsgUrl.String()
 	postMsgResponse := new(PostMsgResult)
@@ -85,13 +97,17 @@ func (bot ChatBot) PostMsg(
 		bot.loginHeader,
 		postMsgResponse)
 	if err != nil {
-		panic(fmt.Errorf("Fatal error post message by http post: %s \n", err))
+		return err
 	}
 	fmt.Println("[INFO] Post message successfully")
+	return err
 }
 
-func (bot ChatBot) ReplyMeme() {
+func (bot ChatBot) ReplyMeme() error {
 	channelsMsgUrl, err := url.Parse(bot.chatUrl)
+	if err != nil {
+		return err
+	}
 	channelsMsgUrl.Path = path.Join(channelsMsgUrl.Path, "/api/v1/channels.messages")
 	channelsMsgUrlString := channelsMsgUrl.String()
 	for _, botTarget := range bot.targets {
@@ -100,13 +116,13 @@ func (bot ChatBot) ReplyMeme() {
 			"roomName": botTarget,
 			"count":    "5",
 		}
-		err = GetAPI(
+		err := GetAPI(
 			channelsMsgUrlString,
 			queries,
 			bot.loginHeader,
 			channelsMsgResponse)
 		if err != nil {
-			panic(fmt.Errorf("Fatal error get messages by http get: %s \n", err))
+			return err
 		}
 		fmt.Printf(
 			"[INFO] Get messages from target channel %s successfully, total: %d\n",
@@ -128,7 +144,7 @@ func (bot ChatBot) ReplyMeme() {
 			LoginData{},
 			searchResponse)
 		if err != nil {
-			panic(fmt.Errorf("Fatal error search by http get: %s \n", err))
+			return err
 		}
 		fmt.Printf(
 			"[INFO] Search memes successfully, total: %d\n",
@@ -139,9 +155,13 @@ func (bot ChatBot) ReplyMeme() {
 
 		// Replay message a meme
 		message := "@" + channelsMsgResponse.Messages[0].User.Name
-		bot.PostMsg(
+		err = bot.PostMsg(
 			botTarget,
 			message,
 			searchResponse.Items[0].Link)
+		if err != nil {
+			return err
+		}
 	}
+	return err
 }

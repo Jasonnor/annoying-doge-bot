@@ -15,5 +15,8 @@ func main() {
 	if loginErr != nil {
 		panic(fmt.Errorf("Fatal error login by http post: %s \n", loginErr))
 	}
-	bot.ReplyMeme()
+	replyErr := bot.ReplyMeme()
+	if replyErr != nil {
+		panic(fmt.Errorf("Fatal error chatbot reply meme: %s \n", replyErr))
+	}
 }
