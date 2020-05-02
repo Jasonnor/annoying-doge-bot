@@ -146,6 +146,10 @@ func (bot ChatBot) ReplyMeme() error {
 		fmt.Printf(
 			"[INFO] Search memes successfully, total: %d\n",
 			memeLength)
+		if memeLength == 0 {
+			fmt.Println("[WARNING] No meme to show, skip")
+			continue
+		}
 
 		// Randomly choose a meme
 		rand.Seed(time.Now().UnixNano())
