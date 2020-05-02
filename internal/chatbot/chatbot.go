@@ -100,6 +100,30 @@ func GetAPI(url string, queries map[string]string, header LoginData, target inte
 	return json.NewDecoder(response.Body).Decode(target)
 }
 
+func Login(
+	chatUrl string,
+	chatUser string,
+	chatPwd string) (LoginData, error) {
+	loginUrl, err := url.Parse(chatUrl)
+	loginUrl.Path = path.Join(loginUrl.Path, "/api/v1/login")
+	loginUrlString := loginUrl.String()
+	loginResponse := new(LoginResult)
+	loginHeader := LoginData{}
+	loginJson := []byte(
+		fmt.Sprintf(
+			`{"user": "%s", "password": "%s"}`,
+			chatUser,
+			chatPwd))
+	err = PostAPI(
+		loginUrlString,
+		loginJson,
+		loginHeader,
+		loginResponse)
+	loginHeader = loginResponse.Data
+	fmt.Printf("[INFO] Login user %s successfully\n", chatUser)
+	return loginHeader, err
+}
+
 func PostMsg(
 	chatUrl string,
 	botTarget string,
@@ -134,4 +158,72 @@ func PostMsg(
 		panic(fmt.Errorf("Fatal error post message by http post: %s \n", err))
 	}
 	fmt.Println("[INFO] Post message successfully")
+}
+
+func ReplyMeme(
+	chatUrl string,
+	botTargets []string,
+	loginHeader LoginData,
+	searchCx string,
+	searchKey string,
+	searchUrl string,
+	botName string,
+	botAvatarUrl string) {
+	channelsMsgUrl, err := url.Parse(chatUrl)
+	channelsMsgUrl.Path = path.Join(channelsMsgUrl.Path, "/api/v1/channels.messages")
+	channelsMsgUrlString := channelsMsgUrl.String()
+	for _, botTarget := range botTargets {
+		channelsMsgResponse := new(ChannelsMsgResult)
+		queries := map[string]string{
+			"roomName": botTarget,
+			"count":    "5",
+		}
+		err = GetAPI(
+			channelsMsgUrlString,
+			queries,
+			loginHeader,
+			channelsMsgResponse)
+		if err != nil {
+			panic(fmt.Errorf("Fatal error get messages by http get: %s \n", err))
+		}
+		fmt.Printf(
+			"[INFO] Get messages from target channel %s successfully, total: %d\n",
+			botTarget,
+			channelsMsgResponse.Total)
+
+		searchText := channelsMsgResponse.Messages[0].Msg + " 梗圖 | 迷因"
+		searchResponse := new(SearchResult)
+		searchQueries := map[string]string{
+			"q":          searchText,
+			"cx":         searchCx,
+			"key":        searchKey,
+			"num":        "10",
+			"searchType": "image",
+		}
+		err = GetAPI(
+			searchUrl,
+			searchQueries,
+			LoginData{},
+			searchResponse)
+		if err != nil {
+			panic(fmt.Errorf("Fatal error search by http get: %s \n", err))
+		}
+		fmt.Printf(
+			"[INFO] Search memes successfully, total: %d\n",
+			len(searchResponse.Items))
+		fmt.Printf(
+			"[DEBUG] Target meme: %+v\n",
+			searchResponse.Items[0])
+
+		// Replay message a meme
+		message := "@" + channelsMsgResponse.Messages[0].User.Name
+		PostMsg(
+			chatUrl,
+			botTarget,
+			botName,
+			botAvatarUrl,
+			loginHeader,
+			message,
+			searchResponse.Items[0].Link)
+	}
 }
