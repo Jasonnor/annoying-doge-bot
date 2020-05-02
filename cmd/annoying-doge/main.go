@@ -7,7 +7,7 @@ import (
 
 func main() {
 	// Get settings and init chat bot
-	bot, initErr := chatbot.InitChatBot()
+	bot, initErr := chatbot.New()
 	if initErr != nil {
 		panic(fmt.Errorf("Fatal error init chat bot: %s \n", initErr))
 	}

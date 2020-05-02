@@ -17,7 +17,7 @@ type ChatBot struct {
 	loginHeader                    LoginData
 }
 
-func InitChatBot() (ChatBot, error) {
+func New() (ChatBot, error) {
 	viper.SetConfigName("setting")
 	viper.SetConfigType("yaml")
 	viper.AddConfigPath("./configs")
