@@ -128,6 +128,9 @@ func (bot ChatBot) ReplyMeme() error {
 			"[INFO] Get messages from target channel %s successfully, total: %d\n",
 			botTarget,
 			channelsMsgResponse.Total)
+		fmt.Printf(
+			"[DEBUG] Target message: %+v\n",
+			channelsMsgResponse.Messages[0])
 
 		searchText := channelsMsgResponse.Messages[0].Msg + " 梗圖 | 迷因"
 		searchResponse := new(SearchResult)
