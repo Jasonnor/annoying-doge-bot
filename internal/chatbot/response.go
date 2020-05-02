@@ -12,9 +12,10 @@ type User struct {
 }
 
 type Message struct {
-	Id   string `json:"_id"`
-	Msg  string `json:"msg"`
-	User User   `json:"u"`
+	Id    string `json:"_id"`
+	Msg   string `json:"msg"`
+	User  User   `json:"u"`
+	Alias string `json:"alias"`
 }
 
 // See: https://rocket.chat/docs/developer-guides/rest-api/authentication/login/

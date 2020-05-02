@@ -123,6 +123,10 @@ func (bot ChatBot) ReplyMeme() error {
 			channelsMsgResponse.Total)
 		targetMessage := channelsMsgResponse.Messages[0]
 		fmt.Printf("[DEBUG] Target message: %+v\n", targetMessage)
+		if targetMessage.Alias == bot.name {
+			fmt.Println("[WARNING] No new message, skip")
+			continue
+		}
 
 		// Search memes by message
 		searchText := targetMessage.Msg + " 梗圖 | 迷因"
