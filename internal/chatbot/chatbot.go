@@ -129,7 +129,7 @@ func (bot ChatBot) ReplyMeme() error {
 		}
 
 		// Search memes by message
-		searchText := targetMessage.Msg + " 梗圖 | 迷因"
+		searchText := `"` + targetMessage.Msg + `" 梗圖 | 迷因`
 		searchResponse := new(SearchResult)
 		searchQueries := map[string]string{
 			"q":          searchText,
