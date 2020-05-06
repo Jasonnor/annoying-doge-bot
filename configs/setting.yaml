@@ -8,6 +8,8 @@ chat_bot:
   avatar_url: https://i.imgur.com/ZNsQPPS.jpg
   target_channels:
     - "jason_playground"
+  alternative_rules:
+    "bad doge": "sorry"
 
 google_search:
   url: https://www.googleapis.com/customsearch/v1/siterestrict

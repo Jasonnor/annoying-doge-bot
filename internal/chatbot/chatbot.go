@@ -6,6 +6,7 @@ import (
 	"math/rand"
 	"net/url"
 	"path"
+	"strings"
 	"time"
 )
 
@@ -13,6 +14,7 @@ type ChatBot struct {
 	chatUrl, chatUser, chatPwd     string
 	name, avatarUrl                string
 	targets                        []string
+	alternativeRules               map[string]string
 	searchUrl, searchCx, searchKey string
 	loginHeader                    LoginData
 	messageBlackMap                map[string]bool
@@ -20,16 +22,17 @@ type ChatBot struct {
 
 func New() ChatBot {
 	bot := ChatBot{
-		chatUrl:         viper.GetString("rocket_chat.url"),
-		chatUser:        viper.GetString("rocket_chat.user_name"),
-		chatPwd:         viper.GetString("rocket_chat.password"),
-		name:            viper.GetString("chat_bot.display_name"),
-		avatarUrl:       viper.GetString("chat_bot.avatar_url"),
-		targets:         viper.GetStringSlice("chat_bot.target_channels"),
-		searchUrl:       viper.GetString("google_search.url"),
-		searchCx:        viper.GetString("google_search.cx"),
-		searchKey:       viper.GetString("google_search.api_key"),
-		messageBlackMap: make(map[string]bool),
+		chatUrl:          viper.GetString("rocket_chat.url"),
+		chatUser:         viper.GetString("rocket_chat.user_name"),
+		chatPwd:          viper.GetString("rocket_chat.password"),
+		name:             viper.GetString("chat_bot.display_name"),
+		avatarUrl:        viper.GetString("chat_bot.avatar_url"),
+		targets:          viper.GetStringSlice("chat_bot.target_channels"),
+		alternativeRules: viper.GetStringMapString("chat_bot.alternative_rules"),
+		searchUrl:        viper.GetString("google_search.url"),
+		searchCx:         viper.GetString("google_search.cx"),
+		searchKey:        viper.GetString("google_search.api_key"),
+		messageBlackMap:  make(map[string]bool),
 	}
 	return bot
 }
@@ -138,8 +141,20 @@ func (bot *ChatBot) ReplyMeme() error {
 			continue
 		}
 
+		// Replace message by alternative rules
+		searchString := targetMessage.Msg
+		for originMsg, altMsg := range bot.alternativeRules {
+			if strings.Contains(searchString, originMsg) {
+				fmt.Printf(
+					"[INFO] Match alternative rule, replace %s to %s\n",
+					searchString, altMsg)
+				searchString = altMsg
+				break
+			}
+		}
+
 		// Search memes by message
-		searchText := `"` + targetMessage.Msg + `" 梗圖 | 迷因`
+		searchText := `"` + searchString + `" 梗圖 | 迷因`
 		searchResponse := new(SearchResult)
 		searchQueries := map[string]string{
 			"q":          searchText,
