@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/spf13/viper"
 	"math/rand"
+	"net/http"
 	"net/url"
 	"path"
 	"strings"
@@ -171,11 +172,12 @@ func (bot *ChatBot) ReplyMeme() error {
 		if err != nil {
 			return err
 		}
-		memeLength := len(searchResponse.Items)
+		memes := searchResponse.Items
+		memesLength := len(memes)
 		fmt.Printf(
 			"[INFO] Search memes successfully, total: %d\n",
-			memeLength)
-		if memeLength == 0 {
+			memesLength)
+		if memesLength == 0 {
 			fmt.Printf(
 				"[WARNING] No meme to show, add %s to black list and skip\n",
 				targetMessage.Msg)
@@ -185,8 +187,34 @@ func (bot *ChatBot) ReplyMeme() error {
 
 		// Randomly choose a meme
 		rand.Seed(time.Now().UnixNano())
-		randomMeme := searchResponse.Items[rand.Intn(memeLength)]
-		fmt.Printf("[DEBUG] Target meme: %+v\n", randomMeme)
+		randomIndex := rand.Intn(memesLength)
+		randomMeme := memes[randomIndex]
+		fmt.Printf(
+			"[DEBUG] Target #%d meme: %+v\n",
+			randomIndex,
+			randomMeme)
+		for memesLength > 1 {
+			// Check image url exist
+			resp, err := http.Head(randomMeme.Link)
+			if err != nil || resp.StatusCode != http.StatusOK {
+				fmt.Printf(
+					"[INFO] Target #%d url not exist, choose another one\n",
+					randomIndex)
+				// Remove image not exist meme
+				memes = append(
+					memes[:randomIndex],
+					memes[randomIndex+1:]...)
+				memesLength := len(memes)
+				randomIndex = rand.Intn(memesLength)
+				randomMeme = memes[randomIndex]
+			} else {
+				break
+			}
+		}
+		if memesLength <= 1 {
+			fmt.Println("[WARNING] All of memes image url not existed, skip")
+			continue
+		}
 
 		// Replay message a meme
 		message := "@" + targetMessage.User.Name
