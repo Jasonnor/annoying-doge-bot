@@ -15,19 +15,21 @@ type ChatBot struct {
 	targets                        []string
 	searchUrl, searchCx, searchKey string
 	loginHeader                    LoginData
+	messageBlackMap                map[string]bool
 }
 
 func New() ChatBot {
 	bot := ChatBot{
-		chatUrl:   viper.GetString("rocket_chat.url"),
-		chatUser:  viper.GetString("rocket_chat.user_name"),
-		chatPwd:   viper.GetString("rocket_chat.password"),
-		name:      viper.GetString("chat_bot.display_name"),
-		avatarUrl: viper.GetString("chat_bot.avatar_url"),
-		targets:   viper.GetStringSlice("chat_bot.target_channels"),
-		searchUrl: viper.GetString("google_search.url"),
-		searchCx:  viper.GetString("google_search.cx"),
-		searchKey: viper.GetString("google_search.api_key"),
+		chatUrl:         viper.GetString("rocket_chat.url"),
+		chatUser:        viper.GetString("rocket_chat.user_name"),
+		chatPwd:         viper.GetString("rocket_chat.password"),
+		name:            viper.GetString("chat_bot.display_name"),
+		avatarUrl:       viper.GetString("chat_bot.avatar_url"),
+		targets:         viper.GetStringSlice("chat_bot.target_channels"),
+		searchUrl:       viper.GetString("google_search.url"),
+		searchCx:        viper.GetString("google_search.cx"),
+		searchKey:       viper.GetString("google_search.api_key"),
+		messageBlackMap: make(map[string]bool),
 	}
 	return bot
 }
@@ -95,7 +97,7 @@ func (bot ChatBot) PostMsg(
 	return err
 }
 
-func (bot ChatBot) ReplyMeme() error {
+func (bot *ChatBot) ReplyMeme() error {
 	channelsMsgUrl, err := url.Parse(bot.chatUrl)
 	if err != nil {
 		return err
@@ -124,7 +126,15 @@ func (bot ChatBot) ReplyMeme() error {
 		targetMessage := channelsMsgResponse.Messages[0]
 		fmt.Printf("[DEBUG] Target message: %+v\n", targetMessage)
 		if targetMessage.Alias == bot.name {
-			fmt.Println("[WARNING] No new message, skip")
+			fmt.Println("[INFO] No new message, skip")
+			continue
+		}
+
+		// Check message in black list
+		if bot.messageBlackMap[targetMessage.Msg] {
+			fmt.Printf(
+				"[INFO] Get message %s which is in black list, skip\n",
+				targetMessage.Msg)
 			continue
 		}
 
@@ -151,7 +161,10 @@ func (bot ChatBot) ReplyMeme() error {
 			"[INFO] Search memes successfully, total: %d\n",
 			memeLength)
 		if memeLength == 0 {
-			fmt.Println("[WARNING] No meme to show, skip")
+			fmt.Printf(
+				"[WARNING] No meme to show, add %s to black list and skip\n",
+				targetMessage.Msg)
+			bot.messageBlackMap[targetMessage.Msg] = true
 			continue
 		}
 
