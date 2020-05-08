@@ -17,17 +17,7 @@ type ChatBot struct {
 	loginHeader                    LoginData
 }
 
-func New() (ChatBot, error) {
-	viper.SetConfigName("setting")
-	viper.SetConfigType("yaml")
-	viper.AddConfigPath("./configs")
-	err := viper.ReadInConfig()
-	if err != nil {
-		return ChatBot{}, err
-	}
-	fmt.Printf(
-		"[INFO] Get config from %s successfully\n",
-		viper.ConfigFileUsed())
+func New() ChatBot {
 	bot := ChatBot{
 		chatUrl:   viper.GetString("rocket_chat.url"),
 		chatUser:  viper.GetString("rocket_chat.user_name"),
@@ -39,7 +29,7 @@ func New() (ChatBot, error) {
 		searchCx:  viper.GetString("google_search.cx"),
 		searchKey: viper.GetString("google_search.api_key"),
 	}
-	return bot, err
+	return bot
 }
 
 func (bot *ChatBot) Login() error {
@@ -133,9 +123,13 @@ func (bot ChatBot) ReplyMeme() error {
 			channelsMsgResponse.Total)
 		targetMessage := channelsMsgResponse.Messages[0]
 		fmt.Printf("[DEBUG] Target message: %+v\n", targetMessage)
+		if targetMessage.Alias == bot.name {
+			fmt.Println("[WARNING] No new message, skip")
+			continue
+		}
 
 		// Search memes by message
-		searchText := targetMessage.Msg + " 梗圖 | 迷因"
+		searchText := `"` + targetMessage.Msg + `" 梗圖 | 迷因`
 		searchResponse := new(SearchResult)
 		searchQueries := map[string]string{
 			"q":          searchText,
@@ -156,6 +150,10 @@ func (bot ChatBot) ReplyMeme() error {
 		fmt.Printf(
 			"[INFO] Search memes successfully, total: %d\n",
 			memeLength)
+		if memeLength == 0 {
+			fmt.Println("[WARNING] No meme to show, skip")
+			continue
+		}
 
 		// Randomly choose a meme
 		rand.Seed(time.Now().UnixNano())
