@@ -8,7 +8,6 @@ import (
 	"net/url"
 	"path"
 	"strings"
-	"time"
 )
 
 type ChatBot struct {
@@ -186,7 +185,6 @@ func (bot *ChatBot) ReplyMeme() error {
 		}
 
 		// Randomly choose a meme
-		rand.Seed(time.Now().UnixNano())
 		randomIndex := rand.Intn(memesLength)
 		randomMeme := memes[randomIndex]
 		for memesLength > 1 {
