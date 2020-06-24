@@ -192,15 +192,15 @@ func (bot *ChatBot) ReplyMeme() error {
 				"[DEBUG] Target #%d meme: %+v\n",
 				randomIndex,
 				randomMeme)
-			// Check image url contains .jpg, .jpeg or .png
-			isJpgOrPng := strings.Contains(
+			// Check image url contains .jpg, .jpeg, .png or gif
+			isValidImage := strings.Contains(
 				randomMeme.Link, ".jpg") || strings.Contains(
-					randomMeme.Link, ".png") || strings.Contains(
-						randomMeme.Link, ".jpeg") || strings.Contains(
-							randomMeme.Link, ".gif")
+				randomMeme.Link, ".png") || strings.Contains(
+				randomMeme.Link, ".jpeg") || strings.Contains(
+				randomMeme.Link, ".gif")
 			// Check image url exist
 			resp, err := http.Head(randomMeme.Link)
-			if err != nil || resp.StatusCode != http.StatusOK || !isJpgOrPng {
+			if err != nil || resp.StatusCode != http.StatusOK || !isValidImage {
 				fmt.Printf(
 					"[INFO] Target #%d url not exist, choose another one\n",
 					randomIndex)
