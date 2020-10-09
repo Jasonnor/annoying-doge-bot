@@ -100,6 +100,32 @@ func (bot ChatBot) PostMsg(
 	return err
 }
 
+func (bot ChatBot) DeleteMsg(
+	roomId string,
+	msgId string) error {
+	deleteMsgUrl, err := url.Parse(bot.chatUrl)
+	if err != nil {
+		return err
+	}
+	deleteMsgUrl.Path = path.Join(deleteMsgUrl.Path, "/api/v1/chat.delete")
+	deleteMsgUrlString := deleteMsgUrl.String()
+	deleteMsgResponse := new(DeleteMsgResult)
+	deleteMsgJson := []byte(
+		fmt.Sprintf(`{"roomId": "%s",  "msgId": "%s"}`,
+			roomId,
+			msgId))
+	err = PostAPI(
+		deleteMsgUrlString,
+		deleteMsgJson,
+		bot.loginHeader,
+		deleteMsgResponse)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("[INFO] Delete message response: %+v", deleteMsgResponse)
+	return err
+}
+
 func (bot *ChatBot) ReplyMeme() error {
 	channelsMsgUrl, err := url.Parse(bot.chatUrl)
 	if err != nil {

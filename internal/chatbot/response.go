@@ -46,3 +46,9 @@ type SearchItem struct {
 type SearchResult struct {
 	Items []SearchItem `json:"items"`
 }
+
+// See: https://docs.rocket.chat/api/rest-api/methods/chat/delete
+type DeleteMsgResult struct {
+	Success bool `json:"success"`
+	Ts      int  `json:"ts"`
+}
