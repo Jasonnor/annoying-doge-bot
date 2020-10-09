@@ -245,7 +245,7 @@ func (bot *ChatBot) ReplyMeme() error {
 		}
 
 		// Search memes by message
-		searchText := `"` + searchString + `" 梗圖 | 迷因`
+		searchText := `` + searchString + ` 梗圖 | meme`
 		searchResponse := new(SearchResult)
 		searchQueries := map[string]string{
 			"q":          searchText,
