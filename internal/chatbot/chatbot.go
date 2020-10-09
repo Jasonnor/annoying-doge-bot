@@ -18,6 +18,7 @@ type ChatBot struct {
 	searchUrl, searchCx, searchKey string
 	loginHeader                    LoginData
 	messageBlackMap                map[string]bool
+	imageUrlBlackMap               map[string]bool
 }
 
 func New() ChatBot {
@@ -33,6 +34,7 @@ func New() ChatBot {
 		searchCx:         viper.GetString("google_search.cx"),
 		searchKey:        viper.GetString("google_search.api_key"),
 		messageBlackMap:  make(map[string]bool),
+		imageUrlBlackMap: make(map[string]bool),
 	}
 	return bot
 }
@@ -159,8 +161,51 @@ func (bot *ChatBot) ReplyMeme() error {
 		targetMessage := channelsMsgResponse.Messages[0]
 		fmt.Printf("[DEBUG] Target message: %+v\n", targetMessage)
 		if targetMessage.Alias == bot.name {
-			fmt.Println("[INFO] No new message, skip")
-			continue
+			// Delete emoji message by bot if contains emojis below
+			_, containNoEntry := targetMessage.Reactions[":no_entry:"]
+			_, containNoEntrySign := targetMessage.Reactions[":no_entry_sign:"]
+			_, containU7981 := targetMessage.Reactions[":u7981:"]
+			_, containX := targetMessage.Reactions[":x:"]
+			_, containWastebasket := targetMessage.Reactions[":wastebasket:"]
+			if containNoEntry || containNoEntrySign || containU7981 || containX || containWastebasket {
+				// Add message image url to black list
+				targetImageUrl := targetMessage.Attachments[0].ImageUrl
+				bot.imageUrlBlackMap[targetImageUrl] = true
+				fmt.Printf(
+					"[INFO] Add image url %s to black list\n",
+					targetImageUrl)
+				// Get room id by name
+				channelsInfoUrl, err := url.Parse(bot.chatUrl)
+				if err != nil {
+					return err
+				}
+				channelsInfoUrl.Path = path.Join(channelsInfoUrl.Path, "/api/v1/channels.info")
+				channelsInfoUrlString := channelsInfoUrl.String()
+				channelsInfoResponse := new(ChannelsInfoResult)
+				queries := map[string]string{
+					"roomName": botTarget,
+				}
+				err = GetAPI(
+					channelsInfoUrlString,
+					queries,
+					bot.loginHeader,
+					channelsInfoResponse)
+				if err != nil {
+					return err
+				}
+				// Delete message
+				fmt.Printf(
+					"[INFO] Delete message %s emoji contains :no_entry:\n",
+					targetMessage.Msg)
+				err = bot.DeleteMsg(channelsInfoResponse.Channel.Id, targetMessage.Id)
+				if err != nil {
+					return err
+				}
+				continue
+			} else {
+				fmt.Println("[INFO] No new message, skip")
+				continue
+			}
 		}
 
 		// Check message in black list
@@ -228,9 +273,10 @@ func (bot *ChatBot) ReplyMeme() error {
 				randomMeme.Link, ".png") || strings.Contains(
 				randomMeme.Link, ".jpeg") || strings.Contains(
 				randomMeme.Link, ".gif")
+			isInBlackList := bot.imageUrlBlackMap[randomMeme.Link]
 			// Check image url exist
 			resp, err := http.Head(randomMeme.Link)
-			if err != nil || resp.StatusCode != http.StatusOK || !isValidImage {
+			if err != nil || resp.StatusCode != http.StatusOK || !isValidImage || isInBlackList {
 				fmt.Printf(
 					"[INFO] Target #%d url not exist, choose another one\n",
 					randomIndex)

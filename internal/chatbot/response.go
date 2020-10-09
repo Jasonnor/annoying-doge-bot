@@ -12,10 +12,18 @@ type User struct {
 }
 
 type Message struct {
-	Id    string `json:"_id"`
-	Msg   string `json:"msg"`
-	User  User   `json:"u"`
-	Alias string `json:"alias"`
+	Id          string                 `json:"_id"`
+	Msg         string                 `json:"msg"`
+	User        User                   `json:"u"`
+	Alias       string                 `json:"alias"`
+	Reactions   map[string]interface{} `json:"reactions"`
+	Attachments []Attachment           `json:"attachments"`
+}
+
+type Attachment struct {
+	Title     string `json:"title"`
+	TitleLink string `json:"title_link"`
+	ImageUrl  string `json:"image_url"`
 }
 
 // See: https://rocket.chat/docs/developer-guides/rest-api/authentication/login/
@@ -51,4 +59,17 @@ type SearchResult struct {
 type DeleteMsgResult struct {
 	Success bool `json:"success"`
 	Ts      int  `json:"ts"`
+}
+
+// See: https://docs.rocket.chat/api/rest-api/methods/channels/info
+type Channel struct {
+	Id         string `json:"_id"`
+	Name       string `json:"name"`
+	Msgs       int    `json:"msgs"`
+	UsersCount int    `json:"usersCount"`
+}
+
+type ChannelsInfoResult struct {
+	Channel Channel `json:"channel"`
+	Success bool    `json:"success"`
 }
