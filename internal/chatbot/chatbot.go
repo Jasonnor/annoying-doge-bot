@@ -216,6 +216,22 @@ func (bot *ChatBot) ReplyMeme() error {
 			continue
 		}
 
+		// Skip message contains #silent
+		if strings.Contains(targetMessage.Msg, "#silent") {
+			fmt.Printf(
+				"[INFO] Get message %s which should be silent, skip\n",
+				targetMessage.Msg)
+			continue
+		}
+
+		// Skip message emoji contains :shushing_face:
+		if _, ok := targetMessage.Reactions[":shushing_face:"]; ok {
+			fmt.Printf(
+				"[INFO] Get message %s emoji contains :shushing_face:, skip\n",
+				targetMessage.Msg)
+			continue
+		}
+
 		// Replace message by alternative rules
 		searchString := targetMessage.Msg
 		for originMsg, altMsg := range bot.alternativeRules {
