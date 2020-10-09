@@ -152,6 +152,10 @@ func (bot *ChatBot) ReplyMeme() error {
 			"[INFO] Get messages from target channel %s successfully, total: %d\n",
 			botTarget,
 			channelsMsgResponse.Total)
+		if len(channelsMsgResponse.Messages) == 0 {
+			fmt.Println("[WARNING] No message from channels response, skip")
+			continue
+		}
 		targetMessage := channelsMsgResponse.Messages[0]
 		fmt.Printf("[DEBUG] Target message: %+v\n", targetMessage)
 		if targetMessage.Alias == bot.name {
