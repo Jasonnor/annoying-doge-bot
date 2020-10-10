@@ -4,6 +4,10 @@
 
 A Rocket.Chat bot that randomly reads conversations to send annoying memes.
 
+![example-1](docs/images/example-1.jpg)
+
+![example-2](docs/images/example-2.jpg)
+
 ## Getting Started
 
 ### Configuration
