@@ -10,6 +10,8 @@ chat_bot:
     - "jason_playground"
   alternative_rules:
     "bad doge": "sorry"
+  pattern_matching:
+    "@jason.doge": "Wow, so scare, what r you doing"
 
 google_search:
   url: https://www.googleapis.com/customsearch/v1/siterestrict
