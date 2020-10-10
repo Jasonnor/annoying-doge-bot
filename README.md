@@ -36,3 +36,18 @@ Edit `config/setting.yaml` to configure project.
   * `time_interval_sec` - Interval time of monitoring channel messages
   * `time_limit_sec` - Service life, end service if reach time limit
 
+### Starting service
+
+```bash
+go build cmd/annoying-doge/main.go
+
+# Linux or macOS
+./main
+
+# Windows
+main.exe
+```
+
+## Features
+
+WIP
