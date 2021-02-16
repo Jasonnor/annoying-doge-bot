@@ -249,6 +249,12 @@ ChannelLoop:
 			continue
 		}
 
+		// Skip message with empty message string
+		if len(targetMessage.Msg) == 0 {
+			fmt.Println("[INFO] Get message with empty message string, skip\n")
+			continue
+		}
+
 		searchString := targetMessage.Msg
 
 		// Reply to target message if match pattern
