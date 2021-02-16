@@ -14,6 +14,7 @@ type ChatBot struct {
 	chatUrl, chatUser, chatPwd     string
 	name, avatarUrl                string
 	targets                        []string
+	patternMatching                map[string]string
 	alternativeRules               map[string]string
 	searchUrl, searchCx, searchKey string
 	loginHeader                    LoginData
@@ -29,6 +30,7 @@ func New() ChatBot {
 		name:             viper.GetString("chat_bot.display_name"),
 		avatarUrl:        viper.GetString("chat_bot.avatar_url"),
 		targets:          viper.GetStringSlice("chat_bot.target_channels"),
+		patternMatching:  viper.GetStringMapString("chat_bot.pattern_matching"),
 		alternativeRules: viper.GetStringMapString("chat_bot.alternative_rules"),
 		searchUrl:        viper.GetString("google_search.url"),
 		searchCx:         viper.GetString("google_search.cx"),
@@ -78,18 +80,32 @@ func (bot ChatBot) PostMsg(
 	postMsgUrl.Path = path.Join(postMsgUrl.Path, "/api/v1/chat.postMessage")
 	postMsgUrlString := postMsgUrl.String()
 	postMsgResponse := new(PostMsgResult)
-	postMsgJson := []byte(
-		fmt.Sprintf(
-			`{"channel": "%s", 
+	var postMsgJson []byte
+	if imageUrl == "" {
+		postMsgJson = []byte(
+			fmt.Sprintf(
+				`{"channel": "%s", 
+				"text": "%s", 
+				"alias": "%s", 
+				"avatar": "%s"}`,
+				botTarget,
+				message,
+				bot.name,
+				bot.avatarUrl))
+	} else {
+		postMsgJson = []byte(
+			fmt.Sprintf(
+				`{"channel": "%s", 
 				"text": "%s", 
 				"alias": "%s", 
 				"avatar": "%s", 
 				"attachments": [{"image_url": "%s"}]}`,
-			botTarget,
-			message,
-			bot.name,
-			bot.avatarUrl,
-			imageUrl))
+				botTarget,
+				message,
+				bot.name,
+				bot.avatarUrl,
+				imageUrl))
+	}
 	err = PostAPI(
 		postMsgUrlString,
 		postMsgJson,
@@ -135,6 +151,7 @@ func (bot *ChatBot) ReplyMeme() error {
 	}
 	channelsMsgUrl.Path = path.Join(channelsMsgUrl.Path, "/api/v1/channels.messages")
 	channelsMsgUrlString := channelsMsgUrl.String()
+ChannelLoop:
 	for _, botTarget := range bot.targets {
 		// Get messages from target channel
 		channelsMsgResponse := new(ChannelsMsgResult)
@@ -232,8 +249,26 @@ func (bot *ChatBot) ReplyMeme() error {
 			continue
 		}
 
-		// Replace message by alternative rules
 		searchString := targetMessage.Msg
+
+		// Reply to target message if match pattern
+		for patternMsg, replyMsg := range bot.patternMatching {
+			if strings.Contains(searchString, patternMsg) {
+				fmt.Printf(
+					"[INFO] Match pattern %s, reply %s\n",
+					patternMsg, replyMsg)
+				err = bot.PostMsg(
+					botTarget,
+					replyMsg,
+					"")
+				if err != nil {
+					return err
+				}
+				continue ChannelLoop
+			}
+		}
+
+		// Replace message by alternative rules
 		for originMsg, altMsg := range bot.alternativeRules {
 			if strings.Contains(searchString, originMsg) {
 				fmt.Printf(
@@ -312,7 +347,7 @@ func (bot *ChatBot) ReplyMeme() error {
 			continue
 		}
 
-		// Replay message a meme
+		// Reply message a meme
 		message := "@" + targetMessage.User.Name
 		err = bot.PostMsg(
 			botTarget,
