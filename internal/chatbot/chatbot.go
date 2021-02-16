@@ -4,15 +4,17 @@ import (
 	"fmt"
 	"github.com/spf13/viper"
 	"math/rand"
+	"net/http"
 	"net/url"
 	"path"
-	"time"
+	"strings"
 )
 
 type ChatBot struct {
 	chatUrl, chatUser, chatPwd     string
 	name, avatarUrl                string
 	targets                        []string
+	alternativeRules               map[string]string
 	searchUrl, searchCx, searchKey string
 	loginHeader                    LoginData
 	messageBlackMap                map[string]bool
@@ -20,16 +22,17 @@ type ChatBot struct {
 
 func New() ChatBot {
 	bot := ChatBot{
-		chatUrl:         viper.GetString("rocket_chat.url"),
-		chatUser:        viper.GetString("rocket_chat.user_name"),
-		chatPwd:         viper.GetString("rocket_chat.password"),
-		name:            viper.GetString("chat_bot.display_name"),
-		avatarUrl:       viper.GetString("chat_bot.avatar_url"),
-		targets:         viper.GetStringSlice("chat_bot.target_channels"),
-		searchUrl:       viper.GetString("google_search.url"),
-		searchCx:        viper.GetString("google_search.cx"),
-		searchKey:       viper.GetString("google_search.api_key"),
-		messageBlackMap: make(map[string]bool),
+		chatUrl:          viper.GetString("rocket_chat.url"),
+		chatUser:         viper.GetString("rocket_chat.user_name"),
+		chatPwd:          viper.GetString("rocket_chat.password"),
+		name:             viper.GetString("chat_bot.display_name"),
+		avatarUrl:        viper.GetString("chat_bot.avatar_url"),
+		targets:          viper.GetStringSlice("chat_bot.target_channels"),
+		alternativeRules: viper.GetStringMapString("chat_bot.alternative_rules"),
+		searchUrl:        viper.GetString("google_search.url"),
+		searchCx:         viper.GetString("google_search.cx"),
+		searchKey:        viper.GetString("google_search.api_key"),
+		messageBlackMap:  make(map[string]bool),
 	}
 	return bot
 }
@@ -138,8 +141,20 @@ func (bot *ChatBot) ReplyMeme() error {
 			continue
 		}
 
+		// Replace message by alternative rules
+		searchString := targetMessage.Msg
+		for originMsg, altMsg := range bot.alternativeRules {
+			if strings.Contains(searchString, originMsg) {
+				fmt.Printf(
+					"[INFO] Match alternative rule, replace %s to %s\n",
+					searchString, altMsg)
+				searchString = altMsg
+				break
+			}
+		}
+
 		// Search memes by message
-		searchText := `"` + targetMessage.Msg + `" 梗圖 | 迷因`
+		searchText := `"` + searchString + `" 梗圖 | 迷因`
 		searchResponse := new(SearchResult)
 		searchQueries := map[string]string{
 			"q":          searchText,
@@ -156,11 +171,12 @@ func (bot *ChatBot) ReplyMeme() error {
 		if err != nil {
 			return err
 		}
-		memeLength := len(searchResponse.Items)
+		memes := searchResponse.Items
+		memesLength := len(memes)
 		fmt.Printf(
 			"[INFO] Search memes successfully, total: %d\n",
-			memeLength)
-		if memeLength == 0 {
+			memesLength)
+		if memesLength == 0 {
 			fmt.Printf(
 				"[WARNING] No meme to show, add %s to black list and skip\n",
 				targetMessage.Msg)
@@ -169,9 +185,40 @@ func (bot *ChatBot) ReplyMeme() error {
 		}
 
 		// Randomly choose a meme
-		rand.Seed(time.Now().UnixNano())
-		randomMeme := searchResponse.Items[rand.Intn(memeLength)]
-		fmt.Printf("[DEBUG] Target meme: %+v\n", randomMeme)
+		randomIndex := rand.Intn(memesLength)
+		randomMeme := memes[randomIndex]
+		for memesLength > 1 {
+			fmt.Printf(
+				"[DEBUG] Target #%d meme: %+v\n",
+				randomIndex,
+				randomMeme)
+			// Check image url contains .jpg, .jpeg, .png or gif
+			isValidImage := strings.Contains(
+				randomMeme.Link, ".jpg") || strings.Contains(
+				randomMeme.Link, ".png") || strings.Contains(
+				randomMeme.Link, ".jpeg") || strings.Contains(
+				randomMeme.Link, ".gif")
+			// Check image url exist
+			resp, err := http.Head(randomMeme.Link)
+			if err != nil || resp.StatusCode != http.StatusOK || !isValidImage {
+				fmt.Printf(
+					"[INFO] Target #%d url not exist, choose another one\n",
+					randomIndex)
+				// Remove image not exist meme
+				memes = append(
+					memes[:randomIndex],
+					memes[randomIndex+1:]...)
+				memesLength := len(memes)
+				randomIndex = rand.Intn(memesLength)
+				randomMeme = memes[randomIndex]
+			} else {
+				break
+			}
+		}
+		if memesLength <= 1 {
+			fmt.Println("[WARNING] All of memes image url not existed, skip")
+			continue
+		}
 
 		// Replay message a meme
 		message := "@" + targetMessage.User.Name
