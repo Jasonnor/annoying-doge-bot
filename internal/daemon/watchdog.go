@@ -1,7 +1,7 @@
 package daemon
 
 import (
-	"annoying-doge-bot/internal/chatbot"
+	"Jasonnor/annoying-doge-bot/internal/chatbot"
 	"fmt"
 	"github.com/spf13/viper"
 	"time"
@@ -23,7 +23,7 @@ func NewWatchDog() WatchDog {
 }
 
 func (dog WatchDog) Run() {
-	// Init chat bot
+	// Init chatbot
 	bot := chatbot.New()
 	loginErr := bot.Login()
 	if loginErr != nil {

@@ -1,7 +1,7 @@
 package main
 
 import (
-	"annoying-doge-bot/internal/daemon"
+	"Jasonnor/annoying-doge-bot/internal/daemon"
 	"fmt"
 	"github.com/spf13/viper"
 )
