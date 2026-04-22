@@ -50,7 +50,7 @@ func (dog WatchDog) Run() {
 				"[INFO] WatchDog: Start a job at time: %v\n", now)
 			replyErr := bot.ReplyMeme()
 			if replyErr != nil {
-				panic(fmt.Errorf("Fatal error chatbot reply meme: %s \n", replyErr))
+				fmt.Println(fmt.Errorf("Fatal error chatbot reply meme: %s \n", replyErr))
 			}
 		}
 	}
