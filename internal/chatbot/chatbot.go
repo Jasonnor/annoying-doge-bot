@@ -363,6 +363,12 @@ ChannelLoop:
 			"num":        "10",
 			"searchType": "image",
 		}
+		if strings.Contains(searchString, " gif") {
+			fmt.Println("[INFO] Detect gif, add animated imgType query")
+			searchQueries["q"] = strings.ReplaceAll(searchQueries["q"], " gif", "")
+			searchQueries["imgType"] = "animated"
+		}
+		fmt.Println("[INFO] Search query: %s", searchQueries["q"])
 		err = GetAPI(
 			bot.searchUrl,
 			searchQueries,
