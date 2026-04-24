@@ -3,3 +3,9 @@ PyYAML
 requests
 fastapi[all]
 uvicorn[standard]
+google-genai
+
+# Image
+huggingface_hub
+boto3
+pillow

@@ -9,6 +9,7 @@ import (
 	"math/rand"
 	"net/http"
 	"net/url"
+	"os"
 	"os/exec"
 	"path"
 	"regexp"
@@ -334,8 +335,8 @@ ChannelLoop:
 			helpString := "**Command List**\n```\n" +
 				"- Do not reply anything to this message: {your message} ?s or #s\n" +
 				"- Help: ?h\n" +
-				"- Gemini Imagen: @draw {image prompt}\n" +
-				"  - Create a Gemini image from the text you provide.\n" +
+				"- FLUX Image: @draw {image prompt}\n" +
+				"  - Create a FLUX image from the text you provide.\n" +
 				"- Reset Chat History: @reset\n" +
 				"  - Clear all chat history in current session.\n" +
 				"- Update system prompt (For @jason.wu only!): @system {system prompt}\n" +
@@ -373,6 +374,58 @@ ChannelLoop:
 			if err != nil {
 				fmt.Printf("[ERROR] Got error while post message: ")
 				fmt.Println(err)
+			}
+			continue
+		}
+
+		// FLUX Image
+		if strings.Contains(targetMessage.Msg, "@draw ") {
+			fmt.Println("[INFO] Get message contain @draw, trigger FLUX Image")
+			prompt := strings.Replace(targetMessage.Msg, "@draw ", "", -1)
+			prompt = strings.Replace(prompt, "\"", "'", -1)
+			fmt.Printf("[INFO] Prompt: %s\n", prompt)
+			scriptFolder, err := os.Getwd()
+			if err != nil {
+				fmt.Printf("[ERROR] Failed to get working directory: %v\n", err)
+				continue
+			}
+			fullCommand := fmt.Sprintf(
+				"%s/venv/bin/python %s/scripts/generate-image.py -p \"%s\"",
+				scriptFolder,
+				scriptFolder,
+				prompt,
+			)
+			cmd := exec.Command("bash", "-c", fullCommand)
+			var stderr bytes.Buffer
+			cmd.Stderr = &stderr
+			out, err := cmd.Output()
+			if err != nil {
+				fmt.Println(fmt.Sprint(err) + ": " + stderr.String())
+				// Send error messages
+				errorStrList := strings.Split(stderr.String(), "\n")
+				lastErrorStr := errorStrList[len(errorStrList)-2]
+				errMessage := fmt.Sprintf("[ERROR] Got error from Hugging Face: %s", lastErrorStr)
+				err = bot.PostMsg(botTarget, errMessage, "")
+				if err != nil {
+					fmt.Printf("[ERROR] Got error while post message: ")
+					fmt.Println(err)
+				}
+				continue
+			}
+			imageURL := strings.TrimSuffix(string(out), "\n")
+			fmt.Printf("[INFO] FLUX Image Generated image URL: %s\n", imageURL)
+
+			// Reply message a meme
+			message := "@" + targetMessage.User.Username
+			oldBotAvatarURL := bot.avatarUrl
+			bot.avatarUrl = "https://aimodelflux.com/wp-content/uploads/2024/08/flux.webp"
+			err = bot.PostMsg(
+				botTarget,
+				message,
+				imageURL)
+			bot.avatarUrl = oldBotAvatarURL
+			if err != nil {
+				return err
 			}
 			continue
 		}
