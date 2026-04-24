@@ -12,6 +12,7 @@ import (
 
 type ChatBot struct {
 	chatUrl, chatUser, chatPwd     string
+	chatUserId, chatAuthToken      string
 	name, avatarUrl                string
 	targets                        []string
 	patternMatching                map[string]string
@@ -24,9 +25,11 @@ type ChatBot struct {
 
 func New() ChatBot {
 	bot := ChatBot{
-		chatUrl:          viper.GetString("rocket_chat.url"),
-		chatUser:         viper.GetString("rocket_chat.user_name"),
-		chatPwd:          viper.GetString("rocket_chat.password"),
+		chatUrl:       viper.GetString("rocket_chat.url"),
+		chatUser:      viper.GetString("rocket_chat.user_name"),
+		chatPwd:       viper.GetString("rocket_chat.password"),
+		chatUserId:    viper.GetString("rocket_chat.user_id"),
+		chatAuthToken: viper.GetString("rocket_chat.auth_token"),
 		name:             viper.GetString("chat_bot.display_name"),
 		avatarUrl:        viper.GetString("chat_bot.avatar_url"),
 		targets:          viper.GetStringSlice("chat_bot.target_channels"),
@@ -42,30 +45,18 @@ func New() ChatBot {
 }
 
 func (bot *ChatBot) Login() error {
-	loginUrl, err := url.Parse(bot.chatUrl)
-	if err != nil {
-		return err
-	}
-	loginUrl.Path = path.Join(loginUrl.Path, "/api/v1/login")
-	loginUrlString := loginUrl.String()
-	loginResponse := new(LoginResult)
-	loginHeader := LoginData{}
-	loginJson := []byte(
-		fmt.Sprintf(
-			`{"user": "%s", "password": "%s"}`,
-			bot.chatUser,
-			bot.chatPwd))
-	err = PostAPI(
-		loginUrlString,
-		loginJson,
-		loginHeader,
-		loginResponse)
-	if err != nil {
-		return err
-	}
-	bot.loginHeader = loginResponse.Data
+	var err error
+	bot.loginHeader = LoginData{bot.chatAuthToken, bot.chatUserId}
 	fmt.Printf("[INFO] Login user %s successfully\n", bot.chatUser)
 	return err
+}
+
+type PostMessageRequest struct {
+	Channel string `json:"channel"`
+	Text    string `json:"text"`
+	Alias   string `json:"alias"`
+	Avatar  string `json:"avatar"`
+	//Attachments string `json:"attachments"`
 }
 
 func (bot ChatBot) PostMsg(
@@ -82,16 +73,13 @@ func (bot ChatBot) PostMsg(
 	postMsgResponse := new(PostMsgResult)
 	var postMsgJson []byte
 	if imageUrl == "" {
-		postMsgJson = []byte(
-			fmt.Sprintf(
-				`{"channel": "%s", 
-				"text": "%s", 
-				"alias": "%s", 
-				"avatar": "%s"}`,
-				botTarget,
-				message,
-				bot.name,
-				bot.avatarUrl))
+		req := PostMessageRequest{
+			Channel: botTarget,
+			Text:    message,
+			Alias:   bot.name,
+			Avatar:  bot.avatarUrl,
+		}
+		postMsgJson, _ = json.Marshal(req)
 	} else {
 		postMsgJson = []byte(
 			fmt.Sprintf(
@@ -156,8 +144,9 @@ ChannelLoop:
 		// Get messages from target channel
 		channelsMsgResponse := new(ChannelsMsgResult)
 		queries := map[string]string{
-			"roomName": botTarget,
-			"count":    "5",
+			//"roomName": botTarget,
+			"roomId": botTarget,
+			"count":  "1",
 		}
 		err := GetAPI(
 			channelsMsgUrlString,
@@ -257,7 +246,7 @@ ChannelLoop:
 
 		searchString := targetMessage.Msg
 
-		// Reply to target message if match pattern
+		// Reply to the target message if pattern match
 		for patternMsg, replyMsg := range bot.patternMatching {
 			if strings.Contains(searchString, patternMsg) {
 				fmt.Printf(
@@ -274,7 +263,7 @@ ChannelLoop:
 			}
 		}
 
-		// Replace message by alternative rules
+		// Replace messages by alternative rules
 		for originMsg, altMsg := range bot.alternativeRules {
 			if strings.Contains(searchString, originMsg) {
 				fmt.Printf(
@@ -354,7 +343,7 @@ ChannelLoop:
 		}
 
 		// Reply message a meme
-		message := "@" + targetMessage.User.Name
+		message := "@" + targetMessage.User.Username
 		err = bot.PostMsg(
 			botTarget,
 			message,

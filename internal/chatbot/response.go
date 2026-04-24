@@ -36,6 +36,7 @@ type LoginResult struct {
 type ChannelsMsgResult struct {
 	Success  bool      `json:"success"`
 	Messages []Message `json:"messages"`
+	Error    string    `json:"error"`
 	Total    int       `json:"total"`
 }
 
@@ -57,8 +58,9 @@ type SearchResult struct {
 
 // See: https://docs.rocket.chat/api/rest-api/methods/chat/delete
 type DeleteMsgResult struct {
-	Success bool `json:"success"`
-	Ts      int  `json:"ts"`
+	Success bool   `json:"success"`
+	TS      string `json:"ts"`
+	Error   string `json:"error"`
 }
 
 // See: https://docs.rocket.chat/api/rest-api/methods/channels/info

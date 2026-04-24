@@ -43,6 +43,7 @@ func GetAPI(
 	if err != nil {
 		return err
 	}
+	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-User-Id", header.UserId)
 	req.Header.Set("X-Auth-Token", header.AuthToken)
 	query := req.URL.Query()
