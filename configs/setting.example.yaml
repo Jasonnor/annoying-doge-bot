@@ -1,0 +1,35 @@
+rocket_chat:
+  url: https://rocket.chat.com
+  user_name: doge
+  password:
+  user_id: rocket.cat
+  auth_token:
+
+chat_bot:
+  display_name: Doge Bot
+  avatar_url: https://i.imgur.com/ZNsQPPS.jpg
+  target_channels:
+    - foo_bar
+  alternative_rules:
+    "bad doge": "sorry"
+  pattern_matching:
+    "@doge": "Wow, so scare, what r you doing"
+
+google_search:
+  url: https://customsearch.googleapis.com/customsearch/v1
+  cx:
+  api_key:
+
+watch_dog:
+  time_interval_sec: 5
+  time_limit_sec: 8640000000
+
+llm:
+  gemini:
+  open_router:
+  hugging_face:
+
+s3:
+  access_key_id:
+  secret_access_key:
+  bucket_name:

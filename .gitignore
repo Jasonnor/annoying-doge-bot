@@ -27,6 +27,7 @@ go_build_main_go
 
 # Config
 config.json
+configs/setting.yaml
 
 # Output
 images/
