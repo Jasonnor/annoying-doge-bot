@@ -185,42 +185,25 @@ ChannelLoop:
 		fmt.Printf("[DEBUG] Target message: %+v\n", targetMessage)
 		if targetMessage.Alias == bot.name {
 			// Delete emoji message by bot if contains emojis below
-			_, containNoEntry := targetMessage.Reactions[":no_entry:"]
-			_, containNoEntrySign := targetMessage.Reactions[":no_entry_sign:"]
-			_, containU7981 := targetMessage.Reactions[":u7981:"]
 			_, containX := targetMessage.Reactions[":x:"]
 			_, containWastebasket := targetMessage.Reactions[":wastebasket:"]
-			if containNoEntry || containNoEntrySign || containU7981 || containX || containWastebasket {
+			if containX || containWastebasket {
 				// Add message image url to black list
-				targetImageUrl := targetMessage.Attachments[0].ImageUrl
-				bot.imageUrlBlackMap[targetImageUrl] = true
-				fmt.Printf(
-					"[INFO] Add image url %s to black list\n",
-					targetImageUrl)
-				// Get room id by name
-				channelsInfoUrl, err := url.Parse(bot.chatUrl)
-				if err != nil {
-					return err
+				if len(targetMessage.Attachments) > 0 {
+					targetImageUrl := targetMessage.Attachments[0].ImageUrl
+					bot.imageUrlBlackMap[targetImageUrl] = true
+					fmt.Printf(
+						"[INFO] Add image url %s to black list\n",
+						targetImageUrl)
 				}
-				channelsInfoUrl.Path = path.Join(channelsInfoUrl.Path, "/api/v1/channels.info")
-				channelsInfoUrlString := channelsInfoUrl.String()
-				channelsInfoResponse := new(ChannelsInfoResult)
-				queries := map[string]string{
-					"roomName": botTarget,
-				}
-				err = GetAPI(
-					channelsInfoUrlString,
-					queries,
-					bot.loginHeader,
-					channelsInfoResponse)
 				if err != nil {
 					return err
 				}
 				// Delete message
 				fmt.Printf(
-					"[INFO] Delete message %s emoji contains :no_entry:\n",
+					"[INFO] Delete message %s emoji contains :x:\n",
 					targetMessage.Msg)
-				err = bot.DeleteMsg(channelsInfoResponse.Channel.Id, targetMessage.Id)
+				err = bot.DeleteMsg(botTarget, targetMessage.Id)
 				if err != nil {
 					return err
 				}
@@ -239,8 +222,8 @@ ChannelLoop:
 			continue
 		}
 
-		// Skip message contains #silent
-		if strings.Contains(targetMessage.Msg, "#silent") {
+		// Skip message contains #silent or #s
+		if strings.Contains(targetMessage.Msg, "?s") || strings.Contains(targetMessage.Msg, "#s") {
 			fmt.Printf(
 				"[INFO] Get message %s which should be silent, skip\n",
 				targetMessage.Msg)
