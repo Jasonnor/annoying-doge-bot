@@ -416,6 +416,10 @@ ChannelLoop:
 					memes[:randomIndex],
 					memes[randomIndex+1:]...)
 				memesLength := len(memes)
+				if memesLength == 0 {
+					// TODO: add to blacklist
+					break
+				}
 				randomIndex = rand.Intn(memesLength)
 				randomMeme = memes[randomIndex]
 			} else {
