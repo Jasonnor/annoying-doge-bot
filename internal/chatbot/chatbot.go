@@ -649,8 +649,8 @@ ChannelLoop:
 			timeStr := reminderText[:spaceIndex]
 			task := strings.TrimSpace(reminderText[spaceIndex:])
 
-			// Parse time format
-			duration, err := parseTimeFormat(timeStr)
+			// Parse time format — returns an absolute target time
+			targetTime, err := parseTimeFormat(timeStr)
 			if err != nil {
 				errMessage := fmt.Sprintf("無法解析時間格式「%s」，請使用「X分後」、「X秒後」、「HH:mm」或「yyyy/MM/dd-HH:mm:ss」格式（秒是可選的），且不可小於當前時間", timeStr)
 				err = bot.PostMsg(botTarget, errMessage, "")
@@ -661,11 +661,17 @@ ChannelLoop:
 				continue
 			}
 
-			// Schedule reminder
-			bot.scheduleReminder(targetMessage.User.Username, task, duration, botTarget)
+			// Schedule reminder using absolute wall-clock target time
+			bot.scheduleReminder(targetMessage.User.Username, task, targetTime, botTarget)
 
-			// Confirm message
-			confirmMessage := fmt.Sprintf("已設定提醒：%v 後提醒您「%s」", duration, task)
+			// Confirm message — show human-readable time-left and exact target time
+			timeLeft := time.Until(targetTime)
+			confirmMessage := fmt.Sprintf(
+				"已設定提醒：%s 後（%s）提醒您「%s」",
+				formatDuration(timeLeft),
+				targetTime.Format("01/02 15:04:05"),
+				task,
+			)
 			err = bot.PostMsg(botTarget, confirmMessage, "")
 			if err != nil {
 				fmt.Printf("[ERROR] Got error while post message: ")
@@ -815,17 +821,24 @@ ChannelLoop:
 	return err
 }
 
-// parseTimeFormat parses the time format from the message
-func parseTimeFormat(timeStr string) (time.Duration, error) {
+// parseTimeFormat parses the time string and returns an absolute target time.Time.
+// Supported formats:
+//   - X分後  : X minutes from now
+//   - X秒後  : X seconds from now
+//   - HH:mm  : today at HH:mm (or tomorrow if already past)
+//   - yyyy/MM/dd-HH:mm[:ss] : absolute date-time
+func parseTimeFormat(timeStr string) (time.Time, error) {
+	now := time.Now()
+
 	// Parse X分後 (X minutes later)
 	minRegex := regexp.MustCompile(`^(\d+)分後`)
 	minMatches := minRegex.FindStringSubmatch(timeStr)
 	if len(minMatches) > 1 {
 		minutes, err := strconv.Atoi(minMatches[1])
 		if err != nil {
-			return 0, err
+			return time.Time{}, err
 		}
-		return time.Duration(minutes) * time.Minute, nil
+		return now.Add(time.Duration(minutes) * time.Minute), nil
 	}
 
 	// Parse X秒後 (X seconds later)
@@ -834,9 +847,9 @@ func parseTimeFormat(timeStr string) (time.Duration, error) {
 	if len(secMatches) > 1 {
 		seconds, err := strconv.Atoi(secMatches[1])
 		if err != nil {
-			return 0, err
+			return time.Time{}, err
 		}
-		return time.Duration(seconds) * time.Second, nil
+		return now.Add(time.Duration(seconds) * time.Second), nil
 	}
 
 	// Parse yyyy/MM/dd-HH:mm:ss format (seconds optional)
@@ -845,23 +858,23 @@ func parseTimeFormat(timeStr string) (time.Duration, error) {
 	if len(dateTimeMatches) > 5 {
 		year, err := strconv.Atoi(dateTimeMatches[1])
 		if err != nil {
-			return 0, err
+			return time.Time{}, err
 		}
 		month, err := strconv.Atoi(dateTimeMatches[2])
 		if err != nil {
-			return 0, err
+			return time.Time{}, err
 		}
 		day, err := strconv.Atoi(dateTimeMatches[3])
 		if err != nil {
-			return 0, err
+			return time.Time{}, err
 		}
 		hour, err := strconv.Atoi(dateTimeMatches[4])
 		if err != nil {
-			return 0, err
+			return time.Time{}, err
 		}
 		minute, err := strconv.Atoi(dateTimeMatches[5])
 		if err != nil {
-			return 0, err
+			return time.Time{}, err
 		}
 
 		// Seconds are optional
@@ -869,46 +882,39 @@ func parseTimeFormat(timeStr string) (time.Duration, error) {
 		if len(dateTimeMatches) > 6 && dateTimeMatches[6] != "" {
 			seconds, err = strconv.Atoi(dateTimeMatches[6])
 			if err != nil {
-				return 0, err
+				return time.Time{}, err
 			}
 		}
 
-		now := time.Now()
 		targetTime := time.Date(year, time.Month(month), day, hour, minute, seconds, 0, now.Location())
-
-		// Check if the target time is in the future
 		if targetTime.Before(now) {
-			return 0, fmt.Errorf("target time must be in the future")
+			return time.Time{}, fmt.Errorf("target time must be in the future")
 		}
-
-		return targetTime.Sub(now), nil
+		return targetTime, nil
 	}
 
-	// Parse time string (HH:MM format)
+	// Parse HH:mm format — today, or tomorrow if the time has already passed today
 	timeRegex := regexp.MustCompile(`^(\d{1,2}):(\d{2})`)
 	timeMatches := timeRegex.FindStringSubmatch(timeStr)
 	if len(timeMatches) > 2 {
 		hour, err := strconv.Atoi(timeMatches[1])
 		if err != nil {
-			return 0, err
+			return time.Time{}, err
 		}
 		minute, err := strconv.Atoi(timeMatches[2])
 		if err != nil {
-			return 0, err
+			return time.Time{}, err
 		}
 
-		now := time.Now()
 		targetTime := time.Date(now.Year(), now.Month(), now.Day(), hour, minute, 0, 0, now.Location())
-
-		// If the target time is in the past, set it to tomorrow
-		if targetTime.Before(now) {
-			targetTime = targetTime.Add(24 * time.Hour)
+		if !targetTime.After(now) {
+			// Already past — schedule for the same time tomorrow
+			targetTime = targetTime.AddDate(0, 0, 1)
 		}
-
-		return targetTime.Sub(now), nil
+		return targetTime, nil
 	}
 
-	return 0, fmt.Errorf("unsupported time format")
+	return time.Time{}, fmt.Errorf("unsupported time format")
 }
 
 // listAllReminders returns a formatted string containing all scheduled reminders
@@ -954,10 +960,11 @@ func formatDuration(d time.Duration) string {
 	}
 }
 
-// scheduleReminder schedules a reminder and sends a notification when the time arrives
-func (bot *ChatBot) scheduleReminder(username string, task string, duration time.Duration, channel string) {
-	targetTime := time.Now().Add(duration)
-
+// scheduleReminder schedules a reminder and sends a notification when the wall-clock time arrives.
+// It uses an absolute target time rather than a sleep duration so that system sleep/wake cycles
+// do not delay delivery — on every poll tick the current wall-clock time is compared to the
+// fixed target, and the reminder fires as soon as the system is awake past that time.
+func (bot *ChatBot) scheduleReminder(username string, task string, targetTime time.Time, channel string) {
 	// Create and store the reminder
 	reminder := Reminder{
 		Username:   username,
@@ -970,53 +977,53 @@ func (bot *ChatBot) scheduleReminder(username string, task string, duration time
 	bot.remindersMutex.Unlock()
 
 	go func() {
-		fmt.Printf("[INFO] Scheduled reminder for @%s in %v: %s\n", username, duration, task)
+		timeLeft := time.Until(targetTime)
+		fmt.Printf("[INFO] Scheduled reminder for @%s at %s (in %s): %s\n",
+			username, targetTime.Format("2006/01/02 15:04:05"), formatDuration(timeLeft), task)
 
-		// Helper function to send the reminder and clean up
-		sendReminder := func() {
-			// Remove the reminder from the list
+		// removeReminder removes this reminder from the active list.
+		removeReminder := func() {
 			bot.remindersMutex.Lock()
 			for i, r := range bot.reminders {
 				if r.Username == username && r.Task == task && r.TargetTime.Equal(targetTime) {
-					// Remove this reminder
 					bot.reminders = append(bot.reminders[:i], bot.reminders[i+1:]...)
 					break
 				}
 			}
 			bot.remindersMutex.Unlock()
-
-			message := fmt.Sprintf("@%s %s", username, task)
-			err := bot.PostMsg(channel, message, "")
-			if err != nil {
-				fmt.Printf("[ERROR] Failed to send reminder: %v\n", err)
-			} else {
-				fmt.Printf("[INFO] Sent reminder to @%s: %s\n", username, task)
-			}
 		}
 
-		// Set up a timer for the exact target time
-		timer := time.NewTimer(duration)
-
-		// Also set up a backup ticker that checks less frequently
-		// This ensures we don't miss the reminder if the system sleeps
-		backupTicker := time.NewTicker(30 * time.Second)
-		defer backupTicker.Stop()
-		defer timer.Stop()
-
-		for {
-			select {
-			case <-timer.C:
-				// Timer fired at the target time
-				sendReminder()
-				return
-
-			case <-backupTicker.C:
-				// Backup check in case the timer was missed
-				now := time.Now()
-				if now.After(targetTime) {
-					sendReminder()
+		// sendReminder removes and fires the reminder, with retry on transient errors.
+		sendReminder := func() {
+			removeReminder()
+			message := fmt.Sprintf("@%s %s", username, task)
+			const maxRetries = 3
+			for attempt := 1; attempt <= maxRetries; attempt++ {
+				err := bot.PostMsg(channel, message, "")
+				if err == nil {
+					fmt.Printf("[INFO] Sent reminder to @%s: %s\n", username, task)
 					return
 				}
+				fmt.Printf("[ERROR] Failed to send reminder (attempt %d/%d): %v\n", attempt, maxRetries, err)
+				if attempt < maxRetries {
+					time.Sleep(5 * time.Second)
+				}
+			}
+			fmt.Printf("[ERROR] Gave up sending reminder to @%s after %d attempts: %s\n", username, maxRetries, task)
+		}
+
+		// Wall-clock polling loop — fully immune to system sleep drift.
+		// Every 5 seconds we read the real wall-clock time and compare it to the
+		// fixed targetTime. If the system was asleep, the next tick after wake-up
+		// will immediately detect that the deadline has passed and fire.
+		const pollInterval = 5 * time.Second
+		ticker := time.NewTicker(pollInterval)
+		defer ticker.Stop()
+
+		for range ticker.C {
+			if !time.Now().Before(targetTime) {
+				sendReminder()
+				return
 			}
 		}
 	}()
