@@ -1,0 +1,5 @@
+# LLM API server
+PyYAML
+requests
+fastapi[all]
+uvicorn[standard]

@@ -76,6 +76,30 @@ type PostMessageRequest struct {
 	//Attachments string `json:"attachments"`
 }
 
+type LlmApiRequest struct {
+	Prompt string  `json:"prompt"`
+	Tools  *string `json:"tools,omitempty"`
+}
+
+type LlmApiResponse struct {
+	Content string `json:"content"`
+}
+
+type ChatModel struct {
+	Name        string
+	Trigger     string
+	Endpoint    string
+	AvatarURL   string
+	Description string
+}
+
+var commonModels = []ChatModel{
+	{Name: "Gemini", Trigger: "@gemini ", Endpoint: "/api/v1/gemini/chat", AvatarURL: "https://i.imgur.com/2Uut5uw.png", Description: "Use Gemini 3 Flash for general text responses."},
+	{Name: "Llama", Trigger: "@llama ", Endpoint: "/api/v1/llama/chat", AvatarURL: "https://i.imgur.com/5bsBgBf.png", Description: "Use Llama 3.3 70B for general text responses."},
+	{Name: "Nemotron", Trigger: "@nemo ", Endpoint: "/api/v1/nemotron/chat", AvatarURL: "https://raw.githubusercontent.com/lobehub/lobe-icons/refs/heads/master/packages/static-png/dark/nvidia-color.png", Description: "Use NVIDIA Nemotron 3 Super for general text responses."},
+	{Name: "GLM", Trigger: "@glm ", Endpoint: "/api/v1/glm/chat", AvatarURL: "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f4/Z.ai_%28company_logo%29.svg/1280px-Z.ai_%28company_logo%29.svg.png", Description: "Use Z.ai GLM 4.5 Air for general text responses."},
+}
+
 func (bot ChatBot) PostMsg(
 	botTarget string,
 	message string,
@@ -121,6 +145,63 @@ func (bot ChatBot) PostMsg(
 	}
 	fmt.Println("[INFO] Post message successfully")
 	return err
+}
+
+func (bot ChatBot) InvokeLLM(botTarget string, model ChatModel, prompt string) error {
+	fmt.Printf("[INFO] Get message contain %s, trigger %s\n", model.Trigger, model.Name)
+	request := LlmApiRequest{
+		Prompt: prompt,
+	}
+	client := &http.Client{}
+	reqBytes, err := json.Marshal(request)
+	if err != nil {
+		return err
+	}
+
+	apiUrl := "http://localhost:8888" + model.Endpoint
+
+	req, err := http.NewRequest("POST", apiUrl, bytes.NewReader(reqBytes))
+	if err != nil {
+		fmt.Printf("[ERROR] Failed to create request for %s, error: %v\n", model.Name, err)
+		return err
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		fmt.Printf("[ERROR] client.Do error for %s: %v\n", model.Name, err)
+		return err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		fmt.Printf("[ERROR] io.ReadAll error for %s: %v\n", model.Name, err)
+		return err
+	}
+
+	if resp.StatusCode != 200 {
+		fmt.Printf("[ERROR] %s not 200 response, status code: %v, body: %s\n", model.Name, resp.StatusCode, string(body))
+		return fmt.Errorf("model %s returned status %d", model.Name, resp.StatusCode)
+	}
+
+	var llmResp LlmApiResponse
+	err = json.Unmarshal(body, &llmResp)
+	if err != nil {
+		fmt.Printf("[ERROR] json.Unmarshal error for %s: %v\n", model.Name, err)
+		return err
+	}
+
+	// Reply message
+	oldBotAvatarURL := bot.avatarUrl
+	bot.avatarUrl = model.AvatarURL
+	err = bot.PostMsg(botTarget, llmResp.Content, "")
+	bot.avatarUrl = oldBotAvatarURL
+
+	if err != nil {
+		fmt.Printf("[ERROR] Got error while post message for %s: %v\n", model.Name, err)
+		return err
+	}
+	return nil
 }
 
 func (bot ChatBot) DeleteMsg(
@@ -240,7 +321,257 @@ ChannelLoop:
 
 		// Skip message with empty message string
 		if len(targetMessage.Msg) == 0 {
-			fmt.Println("[INFO] Get message with empty message string, skip\n")
+			fmt.Println("[INFO] Get message with empty message string, skip")
+			continue
+		}
+
+		//lowerMessage := strings.ToLower(targetMessage.Msg)
+		languageModelTriggered := false
+
+		// Help
+		if strings.Contains(targetMessage.Msg, "?h") {
+			fmt.Printf("[INFO] Get message contain #h, trigger help\n")
+			helpString := "**Command List**\n```\n" +
+				"- Do not reply anything to this message: {your message} ?s or #s\n" +
+				"- Help: ?h\n" +
+				"- Gemini Imagen: @draw {image prompt}\n" +
+				"  - Create a Gemini image from the text you provide.\n" +
+				"- Reset Chat History: @reset\n" +
+				"  - Clear all chat history in current session.\n" +
+				"- Update system prompt (For @jason.wu only!): @system {system prompt}\n" +
+				"  - System prompt will be updated for all models that support system instruction.\n" +
+				"- Ask all active chatbot (For @jason.wu only!): @allbot {text prompt}\n" +
+				"  - Trigger all active chatbot ("
+
+			modelNames := []string{}
+			for _, model := range commonModels {
+				modelNames = append(modelNames, model.Name)
+			}
+			helpString += strings.Join(modelNames, ", ") + ").\n"
+
+			for _, model := range commonModels {
+				helpString += fmt.Sprintf("- %s: %s{text prompt}\n  - %s\n", model.Name, model.Trigger, model.Description)
+			}
+
+			helpString += "- Gemini Search Retrieval: @gemini_search {text prompt} or @gs {text prompt}\n" +
+				"  - Use Gemini 3 Flash with search to find relevant information.\n" +
+				"- Gemini Code Execution: @gemini_code {text prompt}\n" +
+				"  - Use Gemini 3 Flash with code execution for programming tasks.\n" +
+				"- Reminder: @doge 提醒我 {time} {task}\n" +
+				"  - Set a reminder for a specific time. Time formats: X分後, X秒後, HH:mm, or yyyy/MM/dd-HH:mm:ss (seconds optional).\n" +
+				"  - Example: @doge 提醒我 5分後 喝水\n" +
+				"- List Reminders: @doge 列出所有提醒 or @doge 列出提醒\n" +
+				"  - List all scheduled reminders with their trigger times and tasks.\n" +
+				"- Meme Image: {any message}\n" +
+				"  - Find a meme image from the message you send.\n" +
+				"```\n" +
+				"**Emoji React Command**\n" +
+				"- Delete Doge's message: :x: or :wastebasket:\n" +
+				"- Do not reply anything to this message: :shushing_face:"
+			// Reply message
+			err = bot.PostMsg(botTarget, helpString, "")
+			if err != nil {
+				fmt.Printf("[ERROR] Got error while post message: ")
+				fmt.Println(err)
+			}
+			continue
+		}
+
+		// Reset
+		if strings.Contains(targetMessage.Msg, "@reset") {
+			fmt.Printf("[INFO] Get message contain @reset, clear current chat history.\n")
+			request := LlmApiRequest{
+				Prompt: "default",
+			}
+			client := &http.Client{}
+			reqBytes, err := json.Marshal(request)
+			req, err := http.NewRequest("PATCH", "http://localhost:8888/api/v1/system_prompt", bytes.NewReader(reqBytes))
+			if err != nil {
+				fmt.Printf("[ERROR] Failed to create request, error: %v\n", err)
+			}
+			resp, _ := client.Do(req)
+			body, err := io.ReadAll(resp.Body)
+			if err != nil {
+				fmt.Printf("[ERROR] io.ReadAll(resp.Body) error: %v\n", err)
+			}
+			defer resp.Body.Close()
+			if resp.StatusCode != 200 {
+				bodyString := string(body)
+				fmt.Printf("[ERROR] not 200 response, status code: %v, body: %v\n", resp.StatusCode, bodyString)
+			}
+
+			// Reply message
+			err = bot.PostMsg(botTarget, "Chat cleared.", "")
+			if err != nil {
+				fmt.Printf("[ERROR] Got error while post message: ")
+				fmt.Println(err)
+			}
+			continue
+		}
+
+		// Update system prompt
+		if strings.Contains(targetMessage.Msg, "@system ") && targetMessage.User.Username == "jason.wu" {
+			fmt.Printf("[INFO] Get message contain @system, update system prompt\n")
+			targetMessage.Msg = strings.ReplaceAll(targetMessage.Msg, "@system ", "")
+			request := LlmApiRequest{
+				Prompt: targetMessage.Msg,
+			}
+			client := &http.Client{}
+			reqBytes, err := json.Marshal(request)
+			req, err := http.NewRequest("PATCH", "http://localhost:8888/api/v1/system_prompt", bytes.NewReader(reqBytes))
+			if err != nil {
+				fmt.Printf("[ERROR] Failed to create request, error: %v\n", err)
+			}
+			resp, _ := client.Do(req)
+			body, err := io.ReadAll(resp.Body)
+			if err != nil {
+				fmt.Printf("[ERROR] io.ReadAll(resp.Body) error: %v\n", err)
+			}
+			defer resp.Body.Close()
+			if resp.StatusCode != 200 {
+				bodyString := string(body)
+				fmt.Printf("[ERROR] not 200 response, status code: %v, body: %v\n", resp.StatusCode, bodyString)
+			}
+			var geminiResponse LlmApiResponse
+			err = json.Unmarshal(body, &geminiResponse)
+			if err != nil {
+				fmt.Printf("[ERROR] json.NewDecoder(resp.Body).Decode(new(LlmApiResponse)) error: %v\n", err)
+			}
+
+			// Reply message
+			err = bot.PostMsg(botTarget, geminiResponse.Content, "")
+			if err != nil {
+				fmt.Printf("[ERROR] Got error while post message: ")
+				fmt.Println(err)
+			}
+			continue
+		} else if strings.Contains(targetMessage.Msg, "@system ") {
+			err = bot.PostMsg(botTarget, "You are not @jason.wu, access denied.", "")
+			if err != nil {
+				fmt.Printf("[ERROR] Got error while post message: ")
+				fmt.Println(err)
+			}
+			continue
+		}
+
+		// Determine which LLM is triggered
+		if strings.Contains(targetMessage.Msg, "@allbot ") && targetMessage.User.Username == "jason.wu" {
+			allTriggers := ""
+			for _, model := range commonModels {
+				allTriggers += model.Trigger + " "
+			}
+			targetMessage.Msg = strings.ReplaceAll(targetMessage.Msg, "@allbot ", allTriggers)
+		} else if strings.Contains(targetMessage.Msg, "@allbot ") {
+			err = bot.PostMsg(botTarget, "You are not @jason.wu, access denied.", "")
+			if err != nil {
+				fmt.Printf("[ERROR] Got error while post message: ")
+				fmt.Println(err)
+			}
+			continue
+		}
+		triggerGemini := false
+		triggerGeminiCode := false
+		triggerGeminiSearch := false
+		triggeredCommonModels := make([]ChatModel, 0)
+
+		if strings.Contains(targetMessage.Msg, "@gemini_code ") {
+			triggerGemini = true
+			triggerGeminiCode = true
+			targetMessage.Msg = strings.ReplaceAll(targetMessage.Msg, "@gemini_code ", "")
+		}
+		if strings.Contains(targetMessage.Msg, "@gemini_search ") || strings.Contains(targetMessage.Msg, "@gs ") {
+			triggerGemini = true
+			triggerGeminiSearch = true
+			targetMessage.Msg = strings.ReplaceAll(targetMessage.Msg, "@gemini_search ", "")
+			targetMessage.Msg = strings.ReplaceAll(targetMessage.Msg, "@gs ", "")
+		}
+
+		for _, model := range commonModels {
+			if strings.Contains(targetMessage.Msg, model.Trigger) {
+				if model.Name == "Gemini" {
+					triggerGemini = true
+				} else {
+					triggeredCommonModels = append(triggeredCommonModels, model)
+				}
+				targetMessage.Msg = strings.ReplaceAll(targetMessage.Msg, model.Trigger, "")
+			}
+		}
+
+		// Gemini
+		if triggerGemini {
+			fmt.Printf("[INFO] Get message contain @gemini, trigger Gemini\n")
+			var request LlmApiRequest
+			if triggerGeminiCode {
+				fmt.Printf("[INFO] Run in Gemini Code Execution mode\n")
+				tools := "code_execution"
+				request = LlmApiRequest{
+					Prompt: targetMessage.Msg,
+					Tools:  &tools,
+				}
+			} else if triggerGeminiSearch {
+				fmt.Printf("[INFO] Run in Gemini Search Retrieval mode\n")
+				tools := "google_search_tool"
+				request = LlmApiRequest{
+					Prompt: targetMessage.Msg,
+					Tools:  &tools,
+				}
+			} else {
+				//request = LlmApiRequest{
+				//	Prompt: targetMessage.User.Username + ": " + targetMessage.Msg,
+				//}
+				request = LlmApiRequest{
+					Prompt: targetMessage.Msg,
+				}
+			}
+			client := &http.Client{}
+			reqBytes, err := json.Marshal(request)
+			req, err := http.NewRequest("POST", "http://localhost:8888/api/v1/gemini/chat", bytes.NewReader(reqBytes))
+			if err != nil {
+				fmt.Printf("[ERROR] Failed to create request, error: %v\n", err)
+			}
+			resp, _ := client.Do(req)
+			body, err := io.ReadAll(resp.Body)
+			if err != nil {
+				fmt.Printf("[ERROR] io.ReadAll(resp.Body) error: %v\n", err)
+			}
+			defer resp.Body.Close()
+			if resp.StatusCode != 200 {
+				bodyString := string(body)
+				fmt.Printf("[ERROR] not 200 response, status code: %v, body: %v\n", resp.StatusCode, bodyString)
+			}
+			var geminiResponse LlmApiResponse
+			err = json.Unmarshal(body, &geminiResponse)
+			if err != nil {
+				fmt.Printf("[ERROR] json.NewDecoder(resp.Body).Decode(new(LlmApiResponse)) error: %v\n", err)
+			}
+
+			// Optimize markdown
+			geminiResponse.Content = strings.ReplaceAll(geminiResponse.Content, ":**", "**:")
+			geminiResponse.Content = strings.ReplaceAll(geminiResponse.Content, ":*", "*:")
+
+			// Reply message
+			oldBotAvatarURL := bot.avatarUrl
+			bot.avatarUrl = "https://i.imgur.com/2Uut5uw.png"
+			err = bot.PostMsg(botTarget, geminiResponse.Content, "")
+			bot.avatarUrl = oldBotAvatarURL
+			if err != nil {
+				fmt.Printf("[ERROR] Got error while post message: ")
+				fmt.Println(err)
+			}
+			languageModelTriggered = true
+		}
+
+		// Common Models (DeepSeek, Llama, etc.)
+		for _, model := range triggeredCommonModels {
+			err := bot.InvokeLLM(botTarget, model, targetMessage.Msg)
+			if err == nil {
+				languageModelTriggered = true
+			}
+		}
+
+		if languageModelTriggered {
+			continue
+		}
 
 		// Reminder feature
 		if strings.HasPrefix(targetMessage.Msg, "@doge 提醒我") {
@@ -335,6 +666,10 @@ ChannelLoop:
 				break
 			}
 		}
+
+		// Replace all symbols to spaces
+		//re, _ := regexp.Compile(`\W`)
+		//searchString = re.ReplaceAllString(searchString, " ")
 
 		// Search memes by message
 		searchText := `` + searchString + ` 梗圖 | meme`
