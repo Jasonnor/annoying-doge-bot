@@ -166,6 +166,7 @@ func (bot ChatBot) InvokeLLM(botTarget string, model ChatModel, prompt string) e
 		fmt.Printf("[ERROR] Failed to create request for %s, error: %v\n", model.Name, err)
 		return err
 	}
+	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -442,6 +443,7 @@ ChannelLoop:
 			if err != nil {
 				fmt.Printf("[ERROR] Failed to create request, error: %v\n", err)
 			}
+			req.Header.Set("Content-Type", "application/json")
 			resp, _ := client.Do(req)
 			body, err := io.ReadAll(resp.Body)
 			if err != nil {
@@ -475,6 +477,7 @@ ChannelLoop:
 			if err != nil {
 				fmt.Printf("[ERROR] Failed to create request, error: %v\n", err)
 			}
+			req.Header.Set("Content-Type", "application/json")
 			resp, _ := client.Do(req)
 			body, err := io.ReadAll(resp.Body)
 			if err != nil {
@@ -582,6 +585,7 @@ ChannelLoop:
 			if err != nil {
 				fmt.Printf("[ERROR] Failed to create request, error: %v\n", err)
 			}
+			req.Header.Set("Content-Type", "application/json")
 			resp, _ := client.Do(req)
 			body, err := io.ReadAll(resp.Body)
 			if err != nil {
