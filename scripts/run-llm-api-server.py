@@ -123,7 +123,7 @@ async def get_gemini_response(request: ChatRequest):
     else:
         tools = None
     response = genai_client.models.generate_content(
-        model='gemini-3-flash-preview',
+        model='gemini-3.5-flash',
         config=types.GenerateContentConfig(
             system_instruction=DEFAULT_SYSTEM_PROMPT,
             tools=tools,
