@@ -95,7 +95,7 @@ type ChatModel struct {
 }
 
 var commonModels = []ChatModel{
-	{Name: "Gemini", Trigger: "@gemini ", Endpoint: "/api/v1/gemini/chat", AvatarURL: "https://i.imgur.com/2Uut5uw.png", Description: "Use Gemini 3.5 Flash for general text responses."},
+	{Name: "Gemini", Trigger: "@gemini ", Endpoint: "/api/v1/gemini/chat", AvatarURL: "https://i.imgur.com/2Uut5uw.png", Description: "Use Gemini 3.6 Flash for general text responses."},
 	{Name: "Llama", Trigger: "@llama ", Endpoint: "/api/v1/llama/chat", AvatarURL: "https://i.imgur.com/5bsBgBf.png", Description: "Use Llama 3.3 70B for general text responses."},
 	{Name: "Nemotron", Trigger: "@nemo ", Endpoint: "/api/v1/nemotron/chat", AvatarURL: "https://raw.githubusercontent.com/lobehub/lobe-icons/refs/heads/master/packages/static-png/dark/nvidia-color.png", Description: "Use NVIDIA Nemotron 3 Super for general text responses."},
 	{Name: "GLM", Trigger: "@glm ", Endpoint: "/api/v1/glm/chat", AvatarURL: "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f4/Z.ai_%28company_logo%29.svg/1280px-Z.ai_%28company_logo%29.svg.png", Description: "Use Z.ai GLM 4.5 Air for general text responses."},
@@ -356,9 +356,9 @@ ChannelLoop:
 			}
 
 			helpString += "- Gemini Search Retrieval: @gemini_search {text prompt} or @gs {text prompt}\n" +
-				"  - Use Gemini 3.5 Flash with search to find relevant information.\n" +
+				"  - Use Gemini 3.6 Flash with search to find relevant information.\n" +
 				"- Gemini Code Execution: @gemini_code {text prompt}\n" +
-				"  - Use Gemini 3.5 Flash with code execution for programming tasks.\n" +
+				"  - Use Gemini 3.6 Flash with code execution for programming tasks.\n" +
 				"- Reminder: @doge 提醒我 {time} {task}\n" +
 				"  - Set a reminder for a specific time. Time formats: X分後, X秒後, HH:mm, or yyyy/MM/dd-HH:mm:ss (seconds optional).\n" +
 				"  - Example: @doge 提醒我 5分後 喝水\n" +
