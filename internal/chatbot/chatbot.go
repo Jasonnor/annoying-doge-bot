@@ -99,6 +99,7 @@ var commonModels = []ChatModel{
 	{Name: "Llama", Trigger: "@llama ", Endpoint: "/api/v1/llama/chat", AvatarURL: "https://i.imgur.com/5bsBgBf.png", Description: "Use Llama 3.3 70B for general text responses."},
 	{Name: "Nemotron", Trigger: "@nemo ", Endpoint: "/api/v1/nemotron/chat", AvatarURL: "https://raw.githubusercontent.com/lobehub/lobe-icons/refs/heads/master/packages/static-png/dark/nvidia-color.png", Description: "Use NVIDIA Nemotron 3 Super for general text responses."},
 	{Name: "GLM", Trigger: "@glm ", Endpoint: "/api/v1/glm/chat", AvatarURL: "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f4/Z.ai_%28company_logo%29.svg/1280px-Z.ai_%28company_logo%29.svg.png", Description: "Use Z.ai GLM 4.5 Air for general text responses."},
+	{Name: "Groq", Trigger: "@groq ", Endpoint: "/api/v1/groq/chat", AvatarURL: "https://uxwing.com/wp-content/themes/uxwing/download/brands-and-social-media/groq-icon.png", Description: "Use Groq GPT-OSS 120B with built-in browser search."},
 }
 
 func (bot ChatBot) PostMsg(

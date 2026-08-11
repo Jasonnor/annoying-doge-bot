@@ -28,6 +28,7 @@ llm:
   gemini:
   open_router:
   hugging_face:
+  groq:
 
 s3:
   access_key_id:

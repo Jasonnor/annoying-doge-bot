@@ -29,11 +29,14 @@ with open(config_path, "r", encoding="utf-8") as f:
 
 GEMINI_API_KEY = config.get("llm", {}).get("gemini")
 OPEN_ROUTER_TOKEN = config.get("llm", {}).get("open_router")
+GROQ_API_KEY = config.get("llm", {}).get("groq")
 
 if not GEMINI_API_KEY:
     raise ValueError("GEMINI_API_KEY not found in llm.gemini in configs/setting.yaml")
 if not OPEN_ROUTER_TOKEN:
     raise ValueError("OPEN_ROUTER_TOKEN not found in llm.open_router in configs/setting.yaml")
+if not GROQ_API_KEY:
+    raise ValueError("GROQ_API_KEY not found in llm.groq in configs/setting.yaml")
 
 # PROMPT_INJECTION = ' This is a multi-person conversation scenario, and the user input will begin with "{their name}: ". Don\'t start your reply with "{their name}: ". Always reply in Traditional Chinese.'
 PROMPT_INJECTION = ''
@@ -65,6 +68,12 @@ chat_histories = {
 
 genai_client = genai.Client(api_key=GEMINI_API_KEY, http_options={'api_version': 'v1alpha'})
 gemini_chat_history: List[dict] = []
+groq_chat_history: List[dict] = [
+    {
+        'role': 'system',
+        'content': DEFAULT_SYSTEM_PROMPT,
+    },
+]
 
 app = FastAPI()
 
@@ -176,6 +185,72 @@ async def reset_gemini_session():
     return {"content": "Session reset"}
 
 
+@app.post("/api/v1/groq/chat")
+async def get_groq_response(request: ChatRequest):
+    global groq_chat_history
+    groq_chat_history.append(
+        {
+            'role': 'user',
+            'content': request.prompt,
+        },
+    )
+
+    payload = {
+        'model': 'openai/gpt-oss-120b',
+        'messages': groq_chat_history,
+        'max_tokens': 5000,
+        'tools': [{'type': 'browser_search'}],
+    }
+    response = requests.post(
+        url='https://api.groq.com/openai/v1/chat/completions',
+        headers={
+            'Authorization': f'Bearer {GROQ_API_KEY}',
+            'Content-Type': 'application/json',
+        },
+        data=json.dumps(payload),
+    )
+
+    try:
+        resp_json = response.json()
+    except Exception as ex:
+        groq_chat_history.pop()
+        return {'content': f'Groq Error: status={response.status_code} non-json body: {response.text[:200]} ({ex})'}
+
+    if 'error' in resp_json:
+        groq_chat_history.pop()
+        err = resp_json['error']
+        msg = err.get('message', str(err)) if isinstance(err, dict) else str(err)
+        return {'content': f'Groq Error: {msg}'}
+
+    if 'choices' not in resp_json or not resp_json['choices']:
+        return {'content': f'Groq returned unexpected response: {resp_json}'}
+
+    msg_content = resp_json['choices'][0]['message'].get('content')
+    if not msg_content:
+        return {'content': 'No response.'}
+
+    content = chomp(msg_content)
+    groq_chat_history.append(
+        {
+            'role': 'assistant',
+            'content': content,
+        },
+    )
+    return {'content': content}
+
+
+@app.get("/api/v1/groq/reset")
+async def reset_groq_session():
+    global groq_chat_history
+    groq_chat_history = [
+        {
+            'role': 'system',
+            'content': DEFAULT_SYSTEM_PROMPT,
+        },
+    ]
+    return {"content": "Session reset"}
+
+
 @app.post("/api/v1/{model_name}/chat")
 async def get_openrouter_response(model_name: str, request: ChatRequest):
     if model_name not in OPENROUTER_MODELS:
@@ -255,7 +330,7 @@ async def reset_openrouter_session(model_name: str):
 @app.patch("/api/v1/system_prompt")
 async def update_system_prompt(request: ChatRequest):
     global DEFAULT_SYSTEM_PROMPT, PROMPT_INJECTION
-    global gemini_chat_history, chat_histories
+    global gemini_chat_history, chat_histories, groq_chat_history
 
     system_prompt = request.prompt
     if system_prompt is None or system_prompt.lower() in ('default', 'none', ''):
@@ -265,6 +340,12 @@ async def update_system_prompt(request: ChatRequest):
 
     # Reset and update all histories
     gemini_chat_history = []
+    groq_chat_history = [
+        {
+            'role': 'system',
+            'content': DEFAULT_SYSTEM_PROMPT,
+        },
+    ]
     for model in chat_histories:
         chat_histories[model] = [
             {
