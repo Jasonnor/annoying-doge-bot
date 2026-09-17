@@ -19,6 +19,14 @@ from google.genai.types import GoogleSearch
 from pydantic import BaseModel
 from starlette.responses import JSONResponse
 
+from jev import JevUsageError
+from jev import evaluate_jev
+
+try:
+    from typesafe_sdk import TypeSafeClient
+except ImportError:
+    TypeSafeClient = None
+
 # Load API keys from config
 config_path = Path(__file__).resolve().parent.parent / "configs" / "setting.yaml"
 if not config_path.exists():
@@ -30,6 +38,7 @@ with open(config_path, "r", encoding="utf-8") as f:
 GEMINI_API_KEY = config.get("llm", {}).get("gemini")
 OPEN_ROUTER_TOKEN = config.get("llm", {}).get("open_router")
 GROQ_API_KEY = config.get("llm", {}).get("groq")
+TYPESAFE_API_KEY = config.get("llm", {}).get("typesafe")
 
 if not GEMINI_API_KEY:
     raise ValueError("GEMINI_API_KEY not found in llm.gemini in configs/setting.yaml")
@@ -74,6 +83,11 @@ groq_chat_history: List[dict] = [
         'content': DEFAULT_SYSTEM_PROMPT,
     },
 ]
+typesafe_client = (
+    TypeSafeClient(api_key=TYPESAFE_API_KEY)
+    if TYPESAFE_API_KEY and TypeSafeClient is not None
+    else None
+)
 
 app = FastAPI()
 
@@ -90,6 +104,13 @@ async def general_exception_handler(_request, ex: Exception):
 class ChatRequest(BaseModel):
     prompt: str
     tools: Optional[str] = None
+
+
+class JevRequest(BaseModel):
+    state: str
+    kind: str
+    instructions: str
+    options: Optional[List[str]] = None
 
 
 def chomp(x):
@@ -183,6 +204,25 @@ async def reset_gemini_session():
     global gemini_chat_history
     gemini_chat_history = []
     return {"content": "Session reset"}
+
+
+@app.post("/api/v1/jev/evaluate")
+async def evaluate_jev_request(request: JevRequest):
+    if TypeSafeClient is None:
+        return {'content': 'typesafe-sdk is not installed. Run: pip install -r requirements.txt'}
+    if not typesafe_client:
+        return {'content': 'TypeSafe API key not found in llm.typesafe in configs/setting.yaml'}
+    try:
+        content = evaluate_jev(
+            typesafe_client,
+            request.state,
+            request.kind,
+            request.instructions,
+            request.options,
+        )
+    except JevUsageError as ex:
+        return {'content': str(ex)}
+    return {'content': content}
 
 
 @app.post("/api/v1/groq/chat")

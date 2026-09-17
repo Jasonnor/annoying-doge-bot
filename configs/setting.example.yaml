@@ -29,6 +29,7 @@ llm:
   open_router:
   hugging_face:
   groq:
+  typesafe:
 
 s3:
   access_key_id:

@@ -4,6 +4,7 @@ requests
 fastapi[all]
 uvicorn[standard]
 google-genai
+typesafe-sdk
 
 # Image
 huggingface_hub

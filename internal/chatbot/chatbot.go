@@ -20,8 +20,8 @@ import (
 )
 
 type Reminder struct {
-	Username  string
-	Task      string
+	Username   string
+	Task       string
 	TargetTime time.Time
 }
 
@@ -42,11 +42,11 @@ type ChatBot struct {
 
 func New() ChatBot {
 	bot := ChatBot{
-		chatUrl:       viper.GetString("rocket_chat.url"),
-		chatUser:      viper.GetString("rocket_chat.user_name"),
-		chatPwd:       viper.GetString("rocket_chat.password"),
-		chatUserId:    viper.GetString("rocket_chat.user_id"),
-		chatAuthToken: viper.GetString("rocket_chat.auth_token"),
+		chatUrl:          viper.GetString("rocket_chat.url"),
+		chatUser:         viper.GetString("rocket_chat.user_name"),
+		chatPwd:          viper.GetString("rocket_chat.password"),
+		chatUserId:       viper.GetString("rocket_chat.user_id"),
+		chatAuthToken:    viper.GetString("rocket_chat.auth_token"),
 		name:             viper.GetString("chat_bot.display_name"),
 		avatarUrl:        viper.GetString("chat_bot.avatar_url"),
 		targets:          viper.GetStringSlice("chat_bot.target_channels"),
@@ -207,6 +207,67 @@ func (bot ChatBot) InvokeLLM(botTarget string, model ChatModel, prompt string) e
 	return nil
 }
 
+type JevApiRequest struct {
+	State        string   `json:"state"`
+	Kind         string   `json:"kind"`
+	Instructions string   `json:"instructions"`
+	Options      []string `json:"options,omitempty"`
+}
+
+func (bot ChatBot) InvokeJev(botTarget string, state string, cmd JevCommand) error {
+	fmt.Printf("[INFO] Trigger Jev %s\n", cmd.Kind)
+	request := JevApiRequest{
+		State:        state,
+		Kind:         string(cmd.Kind),
+		Instructions: cmd.Instructions,
+		Options:      cmd.Options,
+	}
+	client := &http.Client{}
+	reqBytes, err := json.Marshal(request)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest("POST", "http://localhost:8888/api/v1/jev/evaluate", bytes.NewReader(reqBytes))
+	if err != nil {
+		fmt.Printf("[ERROR] Failed to create request for Jev, error: %v\n", err)
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		fmt.Printf("[ERROR] client.Do error for Jev: %v\n", err)
+		return err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		fmt.Printf("[ERROR] io.ReadAll error for Jev: %v\n", err)
+		return err
+	}
+
+	if resp.StatusCode != 200 {
+		fmt.Printf("[ERROR] Jev not 200 response, status code: %v, body: %s\n", resp.StatusCode, string(body))
+		return fmt.Errorf("jev returned status %d", resp.StatusCode)
+	}
+
+	var llmResp LlmApiResponse
+	err = json.Unmarshal(body, &llmResp)
+	if err != nil {
+		fmt.Printf("[ERROR] json.Unmarshal error for Jev: %v\n", err)
+		return err
+	}
+
+	err = bot.PostMsg(botTarget, llmResp.Content, "")
+	if err != nil {
+		fmt.Printf("[ERROR] Got error while post message for Jev: %v\n", err)
+		return err
+	}
+	return nil
+}
+
 func (bot ChatBot) DeleteMsg(
 	roomId string,
 	msgId string) error {
@@ -247,7 +308,7 @@ ChannelLoop:
 		queries := map[string]string{
 			//"roomName": botTarget,
 			"roomId": botTarget,
-			"count":  "1",
+			"count":  "2",
 		}
 		err := GetAPI(
 			channelsMsgUrlString,
@@ -266,6 +327,10 @@ ChannelLoop:
 			continue
 		}
 		targetMessage := channelsMsgResponse.Messages[0]
+		previousMsg := ""
+		if len(channelsMsgResponse.Messages) > 1 {
+			previousMsg = channelsMsgResponse.Messages[1].Msg
+		}
 		fmt.Printf("[DEBUG] Target message: %+v\n", targetMessage)
 		if targetMessage.Alias == bot.name {
 			// Delete emoji message by bot if contains emojis below
@@ -360,6 +425,12 @@ ChannelLoop:
 				"  - Use Gemini 3.6 Flash with search to find relevant information.\n" +
 				"- Gemini Code Execution: @gemini_code {text prompt}\n" +
 				"  - Use Gemini 3.6 Flash with code execution for programming tasks.\n" +
+				"- Jev yes/no: @jev {question}\n" +
+				"  - Judge the previous message as yes/no.\n" +
+				"- Jev pick: @jev-pick {option} | {option} | ... or @jev-pick {question}: {option} | {option} | ...\n" +
+				"  - Choose one option that fits the previous message.\n" +
+				"- Jev rate: @jev-rate {level} | {level} | ... or @jev-rate {question}: {level} | {level} | ...\n" +
+				"  - Score the previous message against ordered levels.\n" +
 				"- Reminder: @doge 提醒我 {time} {task}\n" +
 				"  - Set a reminder for a specific time. Time formats: X分後, X秒後, HH:mm, or yyyy/MM/dd-HH:mm:ss (seconds optional).\n" +
 				"  - Example: @doge 提醒我 5分後 喝水\n" +
@@ -526,6 +597,23 @@ ChannelLoop:
 			}
 			continue
 		}
+
+		if cmd, ok := ParseJevCommand(targetMessage.Msg); ok {
+			fmt.Printf("[INFO] Get message contain Jev, trigger %s\n", cmd.Kind)
+			if cmd.UsageError != "" {
+				err = bot.PostMsg(botTarget, cmd.UsageError, "")
+			} else if strings.TrimSpace(previousMsg) == "" {
+				err = bot.PostMsg(botTarget, JevNoState, "")
+			} else {
+				err = bot.InvokeJev(botTarget, previousMsg, cmd)
+			}
+			if err != nil {
+				fmt.Printf("[ERROR] Got error while handling Jev: ")
+				fmt.Println(err)
+			}
+			continue
+		}
+
 		triggerGemini := false
 		triggerGeminiCode := false
 		triggerGeminiSearch := false
@@ -937,7 +1025,7 @@ func (bot *ChatBot) listAllReminders() string {
 	for i, reminder := range bot.reminders {
 		timeLeft := time.Until(reminder.TargetTime)
 		timeLeftStr := formatDuration(timeLeft)
-		result.WriteString(fmt.Sprintf("%d. %s後提醒 @%s：%s\n", 
+		result.WriteString(fmt.Sprintf("%d. %s後提醒 @%s：%s\n",
 			i+1, timeLeftStr, reminder.Username, reminder.Task))
 	}
 
